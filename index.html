@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Classmate AI · Visionary Sparks</title>
+<style id="security-cloak"> body { visibility: hidden; opacity: 0; } </style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+:root{
+  --ink:#07070d; --ink2:#0c0c16; --panel:#12121f; --panel2:#171728;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+  --text:#ECECF4; --muted:#9a9ab2; --faint:#6b6b85;
+  --violet:#7c5cff; --cyan:#22d3ee; --lime:#86ff6b; --amber:#f5b544; --rose:#ff6b8b;
+  --grad:linear-gradient(120deg,var(--violet),var(--cyan));
+  --grad2:linear-gradient(120deg,var(--cyan),var(--lime));
+  --radius:18px; --sb:248px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Hanken Grotesk',sans-serif; color:var(--text);
+  background:var(--ink); overflow:hidden; -webkit-font-smoothing:antialiased;
+}
+/* ---------- atmospheric background ---------- */
+.aurora{position:fixed;inset:0;z-index:-2;overflow:hidden;background:
+  radial-gradient(1200px 700px at 12% -10%, rgba(124,92,255,.20), transparent 60%),
+  radial-gradient(1000px 600px at 95% 0%, rgba(34,211,238,.14), transparent 55%),
+  radial-gradient(900px 700px at 60% 120%, rgba(134,255,107,.10), transparent 55%),
+  var(--ink);}
+.aurora b{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;animation:float 18s ease-in-out infinite}
+.aurora b:nth-child(1){width:420px;height:420px;background:var(--violet);top:-120px;left:-80px}
+.aurora b:nth-child(2){width:360px;height:360px;background:var(--cyan);bottom:-120px;right:8%;animation-delay:-6s}
+.aurora b:nth-child(3){width:300px;height:300px;background:var(--lime);top:40%;left:46%;opacity:.25;animation-delay:-11s}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(30px,-26px) scale(1.08)}}
+.grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:var(--sb) 1fr;height:100vh}
+.rail{border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(18,18,31,.7),rgba(10,10,18,.55));backdrop-filter:blur(8px);display:flex;flex-direction:column;padding:22px 16px}
+.brand{display:flex;align-items:center;gap:11px;padding:6px 8px 22px}
+.spark{width:34px;height:34px;display:grid;place-items:center;border-radius:11px;background:var(--grad);box-shadow:0 0 22px rgba(124,92,255,.55);position:relative}
+.spark svg{width:18px;height:18px}
+.spark::after{content:"";position:absolute;inset:0;border-radius:11px;background:var(--grad);filter:blur(10px);opacity:.6;z-index:-1;animation:pulse 2.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:.4}50%{opacity:.85}}
+.brand h1{font-family:'Bricolage Grotesque';font-size:17px;font-weight:800;letter-spacing:-.3px;line-height:1}
+.brand span{display:block;font-size:10.5px;color:var(--faint);letter-spacing:2px;text-transform:uppercase;margin-top:3px}
+.nav{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.nav button{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:var(--muted);font-family:inherit;font-size:14.5px;font-weight:500;padding:11px 12px;border-radius:12px;cursor:pointer;transition:.18s;text-align:left}
+.nav button svg{width:18px;height:18px;opacity:.8}
+.nav button:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.nav button.on{color:#fff;background:linear-gradient(90deg,rgba(124,92,255,.22),rgba(34,211,238,.06));box-shadow:inset 0 0 0 1px var(--line2)}
+.nav button.on svg{opacity:1}
+.nav .tag{margin-left:auto;font-size:9px;font-family:'JetBrains Mono';letter-spacing:.5px;color:var(--faint);border:1px solid var(--line);padding:2px 6px;border-radius:20px}
+.rail .foot{margin-top:auto;padding:12px;border-radius:14px;background:var(--panel);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.rail .foot b{color:var(--lime);font-family:'JetBrains Mono'}
+
+/* ---------- main ---------- */
+.main{overflow-y:auto;height:100vh}
+.main::-webkit-scrollbar{width:9px}.main::-webkit-scrollbar-thumb{background:#23233a;border-radius:9px}
+.topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:18px;padding:16px 34px;background:linear-gradient(180deg,rgba(7,7,13,.92),rgba(7,7,13,.55));backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar .mode{font-size:12.5px;color:var(--muted)}
+.topbar .mode b{color:var(--text)}
+.topbar .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.chip{display:flex;align-items:center;gap:7px;font-size:12.5px;font-family:'JetBrains Mono';font-weight:500;padding:7px 12px;border-radius:30px;border:1px solid var(--line);background:var(--panel)}
+.chip .dot{width:7px;height:7px;border-radius:50%}
+.streak .dot{background:var(--amber);box-shadow:0 0 10px var(--amber)}
+.xp .dot{background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--grad2);display:grid;place-items:center;font-weight:800;color:#04121a;font-family:'Bricolage Grotesque'}
+
+.view{display:none;padding:30px 34px 60px;max-width:1180px}
+.view.on{display:block;animation:rise .5s cubic-bezier(.2,.7,.2,1)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.stagger>*{opacity:0;animation:rise .55s cubic-bezier(.2,.7,.2,1) forwards}
+.stagger>*:nth-child(1){animation-delay:.02s}.stagger>*:nth-child(2){animation-delay:.09s}
+.stagger>*:nth-child(3){animation-delay:.16s}.stagger>*:nth-child(4){animation-delay:.23s}
+.stagger>*:nth-child(5){animation-delay:.3s}.stagger>*:nth-child(6){animation-delay:.37s}
+
+h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter-spacing:-.6px}
+.eyebrow{font-family:'JetBrains Mono';font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--violet);margin-bottom:8px}
+.sub{color:var(--muted);font-size:14.5px;margin-top:5px;max-width:560px}
+
+.panel{background:linear-gradient(180deg,var(--panel),var(--ink2));border:1px solid var(--line);border-radius:var(--radius);position:relative}
+.panel.glow::before {
+    content: ""; position: absolute; inset: 0; border-radius: var(--radius);
+    padding: 1px; background: var(--grad);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; opacity: .5;
+    pointer-events: none;
+}
+/* dashboard grid */
+.grid{display:grid;gap:18px}
+.g-hero{grid-template-columns:1.6fr 1fr;margin-top:22px}
+.hero{padding:28px;overflow:hidden}
+.hero .hi{font-family:'Bricolage Grotesque';font-weight:800;font-size:32px;letter-spacing:-.6px;line-height:1.1}
+.hero .hi em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .line{color:var(--muted);margin-top:10px;font-size:15px;max-width:430px}
+.hero .acts{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap}
+.btn{font-family:inherit;font-weight:600;font-size:14px;border:none;border-radius:13px;padding:13px 20px;cursor:pointer;display:inline-flex;align-items:center;gap:9px;transition:.18s;color:#fff}
+.btn svg{width:16px;height:16px}
+.btn-p{background:var(--grad);box-shadow:0 8px 28px rgba(124,92,255,.4)}
+.btn-p:hover{transform:translateY(-2px);box-shadow:0 12px 34px rgba(124,92,255,.55)}
+.btn-g{background:var(--panel2);border:1px solid var(--line2)}
+.btn-g:hover{border-color:var(--cyan);color:#fff}
+
+.ring-card{padding:24px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.ring{position:relative;width:148px;height:148px}
+.ring svg{transform:rotate(-90deg)}
+.ring .num{position:absolute;inset:0;display:grid;place-items:center;font-family:'Bricolage Grotesque';font-weight:800;font-size:34px}
+.ring .num small{display:block;font-family:'JetBrains Mono';font-size:10px;color:var(--faint);letter-spacing:1.5px;margin-top:2px}
+.ring-card p{color:var(--muted);font-size:13px;margin-top:14px}
+.ring-card p b{color:var(--lime)}
+
+/* rhythm strip */
+.rhythm{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:18px}
+.day{padding:14px 10px;border-radius:14px;border:1px solid var(--line);background:var(--panel);text-align:center;transition:.2s}
+.day .d{font-family:'JetBrains Mono';font-size:11px;color:var(--faint);letter-spacing:1px}
+.day .icn{font-size:20px;margin:8px 0 6px}
+.day .lbl{font-size:11.5px;color:var(--muted);line-height:1.3}
+.day.today{border-color:transparent;background:linear-gradient(160deg,rgba(124,92,255,.25),rgba(34,211,238,.08));box-shadow:0 0 0 1px var(--line2),0 10px 30px rgba(124,92,255,.25)}
+.day.today .d{color:var(--cyan)}.day.today .lbl{color:#fff}
+
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:18px}
+.stat{padding:20px}
+.stat .k{font-family:'JetBrains Mono';font-size:11px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase}
+.stat .v{font-family:'Bricolage Grotesque';font-weight:800;font-size:28px;margin-top:8px}
+.stat .v span{font-size:14px;color:var(--muted);font-family:'Hanken Grotesk';font-weight:500}
+.note{margin-top:18px;padding:16px 18px;border-radius:14px;border:1px dashed var(--line2);color:var(--muted);font-size:13.5px;display:flex;gap:11px;align-items:flex-start}
+.note b{color:var(--text)}
+
+/* ---------- Astra ---------- */
+.astra-wrap{display:grid;grid-template-columns:1fr 280px;gap:18px;margin-top:22px}
+.chatcard{padding:0;overflow:hidden;display:flex;flex-direction:column;min-height:520px}
+.chathead{display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}
+.chathead .av{width:38px;height:38px;border-radius:11px;background:var(--grad);display:grid;place-items:center}
+.chathead .av svg{width:19px;height:19px}
+.chathead .meta b{font-family:'Bricolage Grotesque';font-weight:800;font-size:15px}
+.chathead .meta span{display:block;font-size:11.5px;color:var(--muted)}
+.chathead .route{margin-left:auto;font-family:'JetBrains Mono';font-size:10px;letter-spacing:.5px;padding:5px 10px;border-radius:20px;border:1px solid var(--line);color:var(--faint);transition:.3s}
+.route.cache{color:var(--lime);border-color:rgba(134,255,107,.4);box-shadow:0 0 16px rgba(134,255,107,.15)}
+.route.fresh{color:var(--cyan);border-color:rgba(34,211,238,.4)}
+.stream{flex:1;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+.stream::-webkit-scrollbar{width:7px}.stream::-webkit-scrollbar-thumb{background:#23233a;border-radius:8px}
+.msg{max-width:86%;font-size:14.2px;line-height:1.6}
+.msg.user{align-self:flex-end;background:var(--grad);color:#fff;padding:11px 15px;border-radius:15px 15px 4px 15px}
+.msg.bot{align-self:flex-start;background:var(--panel2);border:1px solid var(--line);padding:15px 17px;border-radius:15px 15px 15px 4px}
+.msg.bot h4{font-family:'Bricolage Grotesque';color:var(--lime);font-size:14.5px;margin:10px 0 4px}
+.msg.bot h4:first-child{margin-top:0}
+.msg.bot ul{margin:6px 0 2px 4px;list-style:none}
+.msg.bot li{padding-left:18px;position:relative;margin:5px 0;color:var(--muted)}
+.msg.bot li::before{content:"›";position:absolute;left:2px;color:var(--cyan)}
+.msg.bot b,.msg.bot strong{color:var(--text)}
+.suggest{display:flex;flex-wrap:wrap;gap:8px;padding:0 20px 14px}
+.suggest button{font-family:inherit;font-size:12.5px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);padding:8px 13px;border-radius:20px;cursor:pointer;transition:.16s}
+.suggest button:hover{border-color:var(--violet);color:#fff}
+.composer{display:flex;gap:10px;padding:16px 20px;border-top:1px solid var(--line)}
+.composer input{flex:1;background:var(--ink2);border:1px solid var(--line);border-radius:12px;padding:13px 15px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+.composer input:focus{border-color:var(--violet)}
+.composer .mic{width:46px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;cursor:pointer;color:var(--muted)}
+.composer .mic:hover{color:var(--cyan);border-color:var(--cyan)}
+.composer .send{border-radius:12px;background:var(--grad);border:none;padding:0 18px;cursor:pointer;display:grid;place-items:center}
+.composer .send svg{width:18px;height:18px;color:#fff}
+
+.side .card{padding:18px;margin-bottom:16px}
+.side .card .k{font-family:'JetBrains Mono';font-size:10.5px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:12px}
+.pchip{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+.pchip:last-child{border:none}.pchip span{color:var(--muted)}.pchip b{font-weight:600}
+.pchip .pill{font-size:11px;font-family:'JetBrains Mono';padding:3px 9px;border-radius:20px;background:rgba(124,92,255,.16);color:#c3b6ff;border:1px solid rgba(124,92,255,.3)}
+
+/* ---------- Quests ---------- */
+.q-controls{display:flex;gap:12px;flex-wrap:wrap;margin-top:22px}
+.sel{position:relative}
+.sel label{display:block;font-family:'JetBrains Mono';font-size:10px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:7px}
+.sel select{appearance:none;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:14px;padding:12px 40px 12px 15px;border-radius:12px;cursor:pointer;outline:none;min-width:190px}
+.sel select:focus{border-color:var(--violet)}
+.sel::after{content:"▾";position:absolute;right:15px;bottom:13px;color:var(--faint);pointer-events:none}
+.mission{padding:26px;margin-top:20px;overflow:hidden;position:relative}
+.mission .badge{font-family:'JetBrains Mono';font-size:11px;letter-spacing:1px;color:var(--rose);display:inline-flex;align-items:center;gap:7px}
+.mission .badge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--rose);box-shadow:0 0 12px var(--rose);animation:pulse 1.4s infinite}
+.mission .story{font-size:15.5px;line-height:1.65;margin:14px 0;max-width:640px}
+.mission .puzzle{padding:16px 18px;border-radius:14px;background:rgba(245,181,68,.08);border:1px solid rgba(245,181,68,.3);font-size:14.5px}
+.mission .puzzle b{color:var(--amber)}
+.solverow{display:flex;gap:10px;margin-top:18px}
+.solverow input{flex:1;background:var(--ink2);border:1px solid var(--line);border-radius:12px;padding:13px 15px;color:var(--text);font-family:inherit;outline:none}
+.solverow input:focus{border-color:var(--amber)}
+.feedback{margin-top:16px;padding:15px 17px;border-radius:13px;font-size:14px;display:none}
+.feedback.win{display:block;background:rgba(134,255,107,.1);border:1px solid rgba(134,255,107,.3)}
+.feedback.win b{color:var(--lime);font-family:'Bricolage Grotesque';font-size:16px}
+.feedback.fail{display:block;background:rgba(255,107,139,.08);border:1px solid rgba(255,107,139,.25)}
+.feedback.fail b{color:var(--rose);font-family:'Bricolage Grotesque';font-size:16px}
+
+/* ---------- Paths ---------- */
+.path-tabs{display:flex;gap:10px;margin-top:22px}
+.path-tabs button{font-family:inherit;font-size:13.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);padding:10px 16px;border-radius:11px;cursor:pointer}
+.path-tabs button.on{color:#fff;border-color:var(--violet);background:linear-gradient(90deg,rgba(124,92,255,.2),transparent)}
+.roadmap{margin-top:24px;position:relative;padding-left:34px}
+.roadmap::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:2px;background:linear-gradient(var(--violet),var(--cyan),var(--lime))}
+.node{position:relative;padding:0 0 26px}
+.node::before{content:"";position:absolute;left:-28px;top:4px;width:16px;height:16px;border-radius:50%;background:var(--ink);border:3px solid var(--violet);box-shadow:0 0 12px rgba(124,92,255,.6)}
+.node.done::before{background:var(--lime);border-color:var(--lime)}
+.node.now::before{border-color:var(--cyan);background:var(--cyan);animation:pulse 1.8s infinite}
+.node .mtitle{font-family:'Bricolage Grotesque';font-weight:600;font-size:16.5px}
+.node .mtitle span{font-family:'JetBrains Mono';font-size:11px;color:var(--faint);margin-left:8px}
+.node .mdesc{color:var(--muted);font-size:13.5px;margin-top:5px;line-height:1.55}
+
+/* ---------- Spark / profile ---------- */
+.arch-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
+.arch{padding:22px;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
+.arch:hover{transform:translateY(-3px)}
+.arch .emo{font-size:30px}
+.arch h3{font-family:'Bricolage Grotesque';font-weight:800;font-size:19px;margin-top:12px}
+.arch p{color:var(--muted);font-size:13px;margin-top:6px;line-height:1.5}
+.arch .for{font-family:'JetBrains Mono';font-size:10.5px;letter-spacing:1px;color:var(--faint);margin-top:12px;text-transform:uppercase}
+.arch.sel-on{border-color:transparent;background:linear-gradient(160deg,rgba(124,92,255,.22),rgba(34,211,238,.06));box-shadow:0 0 0 1px var(--violet),0 14px 40px rgba(124,92,255,.3)}
+.arch.sel-on::after{content:"✓ ACTIVE";position:absolute;top:14px;right:14px;font-family:'JetBrains Mono';font-size:10px;color:var(--lime)}
+.opt-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-top:22px}
+.opt-row .sel select{width:100%}
+
+.locked{padding:40px;text-align:center;margin-top:22px}
+.locked .lk{font-size:34px;opacity:.5}
+.locked h3{font-family:'Bricolage Grotesque';font-size:20px;margin-top:14px}
+.locked p{color:var(--muted);font-size:14px;margin-top:8px;max-width:440px;margin-inline:auto}
+.locked .ph{display:inline-flex;gap:8px;margin-top:18px;flex-wrap:wrap;justify-content:center}
+.locked .ph span{font-size:12px;color:var(--faint);border:1px solid var(--line);padding:6px 12px;border-radius:20px}
+
+@media(max-width:900px){.app{grid-template-columns:1fr}.rail{display:none}.g-hero,.astra-wrap,.stat-row,.arch-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="aurora"><b></b><b></b><b></b></div>
+<div class="grain"></div>
+
+<div class="app">
+  <!-- RAIL -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="spark"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12L13 2z" fill="#fff"/></svg></div>
+      <div><h1>Classmate AI</h1><span>Visionary Sparks</span></div>
+    </div>
+    <nav class="nav" id="nav">
+      <button data-v="today" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg> Today</button>
+      <button data-v="astra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 11-3-6.7M21 4v5h-5"/></svg> Astra · Study</button>
+      <button data-v="quests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 21 12 17l-5.5 4L8 13.5 3 9l6.5-.5z"/></svg> Quests <span class="tag">RPG</span></button>
+      <button data-v="paths"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 18V6m0 0l4 3 8-6 4 3v12l-4-3-8 6-4-3z"/></svg> Paths</button>
+      <button data-v="spark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg> Your Spark</button>
+      <button data-v="explorer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M15 9l-2 5-5 2 2-5 5-2z"/></svg> Explorer <span class="tag">SOON</span></button>
+    </nav>
+    <button onclick="signOut()" style="display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:#ff6b8b;font-family:inherit;font-size:14.5px;font-weight:500;padding:11px 12px;border-radius:12px;cursor:pointer;transition:.18s;text-align:left;margin-top:auto;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:18px;height:18px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      Sign Out
+    </button>
+    <div class="foot">Engine routing: <b>bouncer → cache → gemini</b><br/>Cache hits cost <b>₹0</b>.</div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div class="mode">Mode today · <b id="todayMode">Academic Focus</b></div>
+      <div class="right">
+        <div class="chip streak"><span class="dot"></span> <span id="streakN">6</span> day streak</div>
+        <div class="chip xp"><span class="dot"></span> <span id="xpN">0</span> XP</div>
+        <div class="avatar" id="avatarInit">S</div>
+      </div>
+    </div>
+
+    <!-- TODAY -->
+    <section class="view on" data-view="today">
+      <div class="stagger">
+        <div class="eyebrow">Command Deck</div>
+        <h2 class="title" id="todayTitle">Today</h2>
+        <div class="grid g-hero">
+          <div class="panel glow hero">
+            <div class="hi">Welcome back, <em id="heroName">Cadet</em>.</div>
+            <div class="line" id="heroLine">It's an Academic day. Games are resting, the news is hidden — just you and the work. Drop your first question and let's get it.</div>
+            <div class="acts">
+              <button class="btn btn-p" data-go="astra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7"/></svg> Ask Astra</button>
+              <button class="btn btn-g" data-go="quests"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.5 6.5L21 9l-5 4.5"/></svg> Launch a Quest</button>
+            </div>
+          </div>
+          <div class="panel ring-card">
+            <div class="ring">
+              <svg width="148" height="148"><circle cx="74" cy="74" r="62" stroke="#1e1e30" stroke-width="12" fill="none"/><circle id="ringArc" cx="74" cy="74" r="62" stroke="url(#gg)" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="389" stroke-dashoffset="389"/><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs></svg>
+              <div class="num">72<small>EFFORT</small></div>
+            </div>
+            <p>This week you showed up <b>5 of 6 planned days</b>. We track effort, not marks.</p>
+          </div>
+        </div>
+
+        <div class="rhythm" id="rhythm"></div>
+
+        <div class="stat-row">
+          <div class="panel stat"><div class="k">Goal locked</div><div class="v" id="statGoal">JEE <span>· long road, started</span></div></div>
+          <div class="panel stat"><div class="k">Concepts cleared</div><div class="v">38 <span>/ this month</span></div></div>
+          <div class="panel stat"><div class="k">Credits saved by cache</div><div class="v" style="color:var(--lime)">81% <span>this week</span></div></div>
+        </div>
+
+        <div class="note panel"><span style="font-size:18px">🛡️</span><div><b>Effort dashboard, not a fear machine.</b> No red "you failed 30/100" here. We surface your consistency, your comebacks, and the weeks you survived — because that's what actually builds a future.</div></div>
+      </div>
+    </section>
+
+    <!-- ASTRA -->
+    <section class="view" data-view="astra">
+      <div class="eyebrow">Study Mode</div>
+      <h2 class="title">Astra</h2>
+      <div class="sub">Your tutor speaks differently to a Class-10 mind and a final-year engineer. Same question, tuned answer — driven by the profile on the right.</div>
+      <div class="astra-wrap">
+        <div class="panel glow chatcard">
+          <div class="chathead">
+            <div class="av"><svg viewBox="0 0 24 24" fill="#fff"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12L13 2z"/></svg></div>
+            <div class="meta"><b>Astra</b><span id="astraSub">Tuned for · College · Beginner</span></div>
+            <div class="route" id="route">IDLE</div>
+          </div>
+          <div class="stream" id="stream">
+            <div class="msg bot"><h4>Hey there 👋</h4>Ask me anything in your stream. I'll match the depth to where you are — try a sample below, or type your own.</div>
+          </div>
+          <div class="suggest" id="suggest"></div>
+          <div class="composer">
+            <input id="astraInput" placeholder="Ask Astra a concept…" />
+            <div class="mic" title="Voice (Phase 2 — parked to save credits)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
+            <button class="send" onclick="askAstra()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+          </div>
+        </div>
+        <div class="side">
+          <div class="panel card">
+            <div class="k">Active profile</div>
+            <div class="pchip"><span>Age band</span><b id="pAge">College</b></div>
+            <div class="pchip"><span>Goal</span><b id="pGoal">JEE</b></div>
+            <div class="pchip"><span>Level</span><b id="pLevel">Beginner</b></div>
+            <div class="pchip"><span>Archetype</span><span class="pill" id="pArch">Grinder</span></div>
+          </div>
+          <div class="panel card">
+            <div class="k">How a reply is built</div>
+            <div class="pchip"><span>1 · Bouncer</span><b>strips the fluff</b></div>
+            <div class="pchip"><span>2 · Cache</span><b style="color:var(--lime)">hit = instant, ₹0</b></div>
+            <div class="pchip"><span>3 · Gemini</span><b>only on a miss</b></div>
+          </div>
+          <button class="btn btn-g" style="width:100%" data-go="spark">Change your profile →</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUESTS -->
+    <section class="view" data-view="quests">
+      <div class="eyebrow">RPG Mode</div>
+      <h2 class="title">Quests</h2>
+      <div class="sub">Boring word problems become missions in the life you're chasing. Your subject becomes the weapon.</div>
+      <div class="q-controls">
+        <div class="sel"><label>Subject</label><select id="qSub"><option>Math</option><option>Physics</option><option>Chemistry</option><option>Biology</option></select></div>
+        <div class="sel"><label>Dream career</label><select id="qCar"><option>Police Detective</option><option>Aerospace Engineer</option><option>Cyber Defender</option><option>Surgeon</option></select></div>
+        <button class="btn btn-p" style="align-self:flex-end" onclick="launchMission()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.5 6.5L21 9l-5 4.5"/></svg> Launch Mission</button>
+      </div>
+      <div class="panel glow mission" id="missionCard" style="display:none">
+        <div class="badge">INCOMING DIRECTIVE</div>
+        <div class="story" id="qStory"></div>
+        <div class="puzzle" id="qPuzzle"></div>
+        <div class="solverow"><input id="qAns" placeholder="Your action — solve it…" /><button class="btn btn-p" onclick="solveMission()">Submit</button></div>
+        <div class="feedback" id="qFeed"></div>
+      </div>
+    </section>
+
+    <!-- PATHS -->
+    <section class="view" data-view="paths">
+      <div class="eyebrow">Roadmaps</div>
+      <h2 class="title">Paths</h2>
+      <div class="sub">A good plan is half done. Every goal becomes a lit timeline you can actually walk.</div>
+      <div class="path-tabs" id="pathTabs">
+        <button class="on" data-p="python">Python · Upskill</button>
+        <button data-p="jee">JEE · Academic</button>
+      </div>
+      <div class="roadmap" id="roadmap"></div>
+    </section>
+
+    <!-- SPARK / PROFILE -->
+    <section class="view" data-view="spark">
+      <div class="eyebrow">Identity Engine</div>
+      <h2 class="title">Your Spark</h2>
+      <div class="sub">This is the "dashboard" that points the whole app at <i>you</i>. Three switches — archetype, age, goal — reshape every answer Astra gives. No giant build needed.</div>
+      <div class="arch-grid" id="archGrid"></div>
+      <div class="opt-row">
+        <div class="sel"><label>Age band</label><select id="sAge"><option value="u15">Under 15</option><option value="u18">Under 18</option><option value="college" selected>College</option><option value="pro">Working pro</option></select></div>
+        <div class="sel"><label>Primary goal</label><select id="sGoal"><option>JEE</option><option>NEET</option><option>Python / DS</option><option>Placements</option><option>General</option></select></div>
+        <div class="sel"><label>Level</label><select id="sLevel"><option>Beginner</option><option>Intermediate</option></select></div>
+        <div class="sel"><label>Your name</label><input id="sName" value="Cadet" style="background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:14px;padding:12px 15px;border-radius:12px;outline:none;width:100%"/></div>
+      </div>
+      <div class="note panel" style="margin-top:22px"><span style="font-size:18px">⚡</span><div>Every switch here is saved to your profile and becomes a variable in the prompt + a segment in the cache key: <b>age|goal|level|subject|question</b>. That's how one engine serves a 15-year-old and a 21-year-old without re-asking Gemini twice.</div></div>
+    </section>
+
+    <!-- EXPLORER (locked preview) -->
+    <section class="view" data-view="explorer">
+      <div class="eyebrow">Phase 2</div>
+      <h2 class="title">Explorer</h2>
+      <div class="panel glow locked">
+        <div class="lk">🌌</div>
+        <h3>The awareness & wellness wing</h3>
+        <p>Short, safe knowledge drops (no endless feed, no dislikes, no doom-scroll), weekend health & movement, real-world stories. Built deliberately for teenagers — which means it waits until we've handled consent &amp; data law properly.</p>
+        <div class="ph"><span>📰 Awareness shorts</span><span>🏃 Health day</span><span>🧭 Curiosity drops</span><span>🔒 DPDP-safe first</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ONBOARDING MODAL — shown on first login or when /profile returns 404 -->
+<div id="onboarding-overlay" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(7,7,13,.94);backdrop-filter:blur(14px);align-items:center;justify-content:center;padding:20px;">
+  <div style="width:100%;max-width:460px;padding:36px;border-radius:22px;background:var(--panel);border:1px solid var(--line2);box-shadow:0 24px 80px rgba(0,0,0,.6);position:relative;overflow:hidden;">
+    <div style="position:absolute;top:0;left:0;right:0;height:1px;background:var(--grad);opacity:.8;"></div>
+    <div class="eyebrow" style="text-align:center;margin-bottom:6px;">New Cadet</div>
+    <h2 class="title" style="text-align:center;font-size:24px;margin-bottom:8px;">Set Up Your Spark</h2>
+    <p style="color:var(--muted);font-size:13.5px;text-align:center;margin-bottom:28px;max-width:340px;margin-inline:auto;">These three settings shape every answer Astra gives you.</p>
+
+    <div style="margin-bottom:18px;">
+      <label style="display:block;font-family:'JetBrains Mono';font-size:10px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:7px;">Your name</label>
+      <input id="ob-name" placeholder="What should Astra call you?" style="width:100%;background:var(--ink2);border:1px solid var(--line);border-radius:12px;padding:13px 15px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:.15s;" onfocus="this.style.borderColor='var(--violet)'" onblur="this.style.borderColor='var(--line)'">
+    </div>
+
+    <div style="margin-bottom:18px;">
+      <label style="display:block;font-family:'JetBrains Mono';font-size:10px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:7px;">Primary goal</label>
+      <div style="position:relative;">
+        <select id="ob-goal" style="appearance:none;width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:14px;padding:12px 40px 12px 15px;border-radius:12px;cursor:pointer;outline:none;">
+          <option value="JEE">JEE</option>
+          <option value="NEET">NEET</option>
+          <option value="Python / DS">Python / DS</option>
+          <option value="Placements">Placements</option>
+          <option value="General">General</option>
+        </select>
+        <span style="position:absolute;right:15px;top:50%;transform:translateY(-50%);color:var(--faint);pointer-events:none;">▾</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom:28px;">
+      <label style="display:block;font-family:'JetBrains Mono';font-size:10px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:11px;">Your archetype</label>
+      <div id="ob-arch-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
+    </div>
+
+    <button id="ob-submit" onclick="submitOnboarding()" class="btn btn-p" style="width:100%;justify-content:center;font-size:15px;padding:15px 20px;">Begin My Journey →</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ── State ───────────────────────────────────────────────────────────────── */
+const S = { name:"Cadet", archetype:"Grinder", age:"college", goal:"JEE", level:"Beginner", xp:0 };
+
+const ARCHETYPES = [
+  {id:"Grinder",  emo:"🔥",    title:"The Grinder",   desc:"Locked on the exam. Discipline over hype, reps over excuses.",          for:"NEET · JEE · Competitive"},
+  {id:"Innovator",emo:"⚙️",    title:"The Innovator",  desc:"Builder's brain. Learns by shipping — code, projects, skills.",          for:"Python · Tech · Career"},
+  {id:"Dreamer",  emo:"🏴‍☠️", title:"The Dreamer",    desc:"Plays the long, massive game. Hokage energy. Thinks in decades.",        for:"Founders · Big goals"},
+];
+
+const GREET = {
+  Grinder:  "Discipline mode. No noise today — just the next rep. What are we drilling?",
+  Innovator:"Builder's seat. Let's turn a concept into something you can run. What's the doubt?",
+  Dreamer:  "Long game, big arc. Every small win compounds. Where do we push today?"
+};
+
+/* ── Supabase client ─────────────────────────────────────────────────────── */
+const supabaseUrl = 'https://gpjozyrsvxvfaowgfrob.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdwam96eXJzdnh2ZmFvd2dmcm9iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0Mzc4MTcsImV4cCI6MjA5NjAxMzgxN30.CWlQLph_ARfC_LV99NrhaY1C2z5KfSA_LH_fX7_AeQc';
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+let currentUser = null;
+
+/* ── Auth helpers ────────────────────────────────────────────────────────── */
+async function getAuthHeader() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) return {};
+  return { 'Authorization': 'Bearer ' + session.access_token };
+}
+
+async function enforceSecurity() {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (!session) { window.location.replace("login.html"); return; }
+
+  currentUser = session.user;
+  const isNewUser = new URLSearchParams(window.location.search).get('new_user') === 'true';
+
+  // Fetch real profile from DB
+  let profile = null;
+  try {
+    const res = await fetch('/profile', { headers: await getAuthHeader() });
+    if (res.ok) profile = await res.json();
+  } catch (e) {
+    console.warn('Profile fetch failed, using defaults:', e);
+  }
+
+  // Show onboarding for new users or missing profiles
+  if (!profile || isNewUser) showOnboarding();
+
+  // Populate S from DB data
+  if (profile) {
+    S.name      = profile.display_name || currentUser.email.split('@')[0];
+    S.archetype = profile.archetype    || 'Grinder';
+    S.age       = profile.age_band     || 'college';
+    S.goal      = profile.current_goal || 'JEE';
+    S.level     = capitalize(profile.level) || 'Beginner';
+    S.xp        = profile.total_xp     || 0;
+  } else {
+    S.name = currentUser.email.split('@')[0];
+  }
+
+  // Drop the security cloak
+  const cloak = document.getElementById('security-cloak');
+  if (cloak) cloak.remove();
+  document.body.style.visibility = 'visible';
+  document.body.style.opacity    = '1';
+  document.body.style.transition = 'opacity 0.4s ease-in';
+
+  // Sync profile-dependent UI
+  document.getElementById('xpN').textContent   = S.xp.toLocaleString();
+  document.getElementById('sAge').value        = S.age;
+  document.getElementById('sGoal').value       = S.goal;
+  document.getElementById('sLevel').value      = S.level;
+  document.getElementById('sName').value       = S.name;
+  syncProfile();
+  buildArch();
+}
+
+function capitalize(str) {
+  return str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+}
+
+async function signOut() {
+  await supabaseClient.auth.signOut();
+  window.location.href = "login.html";
+}
+
+/* ── Onboarding modal ────────────────────────────────────────────────────── */
+let obArchetype = 'Grinder';
+
+function showOnboarding() {
+  document.getElementById('onboarding-overlay').style.display = 'flex';
+  const grid = document.getElementById('ob-arch-grid');
+  grid.innerHTML = '';
+  ARCHETYPES.forEach(a => {
+    const btn = document.createElement('button');
+    btn.innerHTML = `<span style="font-size:22px">${a.emo}</span><span style="display:block;font-family:'Bricolage Grotesque';font-weight:800;font-size:13px;margin-top:6px;">${a.id}</span><span style="display:block;font-size:10px;color:var(--muted);margin-top:3px;line-height:1.3;">${a.for}</span>`;
+    btn.style.cssText = 'background:var(--panel2);border:1px solid var(--line);border-radius:13px;padding:14px 8px;cursor:pointer;color:var(--text);width:100%;transition:.15s;text-align:center;';
+    btn.onclick = () => {
+      obArchetype = a.id;
+      grid.querySelectorAll('button').forEach(b => { b.style.borderColor='var(--line)'; b.style.background='var(--panel2)'; });
+      btn.style.borderColor = 'var(--violet)';
+      btn.style.background  = 'rgba(124,92,255,.18)';
+    };
+    if (a.id === 'Grinder') { btn.style.borderColor='var(--violet)'; btn.style.background='rgba(124,92,255,.18)'; }
+    grid.appendChild(btn);
+  });
+}
+
+async function submitOnboarding() {
+  const name = document.getElementById('ob-name').value.trim();
+  if (!name) { document.getElementById('ob-name').focus(); return; }
+  const goal = document.getElementById('ob-goal').value;
+  const btn  = document.getElementById('ob-submit');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const res = await fetch('/update_profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ display_name: name, age_band: 'college', current_goal: goal, level: 'beginner', archetype: obArchetype })
+    });
+    if (!res.ok) throw new Error('Save failed');
+    S.name = name; S.goal = goal; S.archetype = obArchetype; S.age = 'college'; S.level = 'Beginner';
+    document.getElementById('onboarding-overlay').style.display = 'none';
+    document.getElementById('sAge').value   = S.age;
+    document.getElementById('sGoal').value  = S.goal;
+    document.getElementById('sLevel').value = S.level;
+    document.getElementById('sName').value  = S.name;
+    syncProfile();
+    buildArch();
+    // Update Astra greeting to reflect the chosen archetype
+    const st = document.getElementById('stream');
+    st.innerHTML = `<div class="msg bot"><h4>Hey ${S.name} 👋</h4>${GREET[S.archetype]}</div>`;
+    window.history.replaceState({}, '', '/');
+  } catch (e) {
+    console.error(e);
+    btn.textContent = 'Error — try again';
+  } finally {
+    btn.disabled = false;
+    if (btn.textContent === 'Saving…') btn.textContent = 'Begin My Journey →';
+  }
+}
+
+/* ── Persist profile changes from the Spark view ─────────────────────────── */
+async function persistProfile() {
+  try {
+    await fetch('/update_profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({
+        display_name: S.name,
+        age_band:     S.age,
+        current_goal: S.goal,
+        level:        S.level.toLowerCase(),
+        archetype:    S.archetype,
+      })
+    });
+  } catch (e) {
+    console.warn('Profile save failed:', e);
+  }
+}
+
+/* ── Sample answers (local, zero-cost demos) ─────────────────────────────── */
+const SAMPLES = {
+  "what is a python list?":{
+    Beginner:[["A list, simply","A list is just a <b>box that holds many things in order</b> — numbers, words, anything."],
+      ["Why you care",["You keep related stuff together: <b>marks = [88, 91, 76]</b>","You can add, remove, and grab by position (it starts at 0!)","It remembers the order you put things in"]],
+      ["Try it","Make a list of your 3 favourite subjects and print the first one."]],
+    Intermediate:[["Definition","An ordered, <b>mutable</b> sequence — dynamic array under the hood, O(1) index access, O(n) insert/delete at front."],
+      ["What to watch",["Slicing returns a copy: <b>a[1:3]</b>","<b>Aliasing</b> bites: b = a shares the same object","List comp &gt; loop for transforms: <b>[x*x for x in a]</b>"]],
+      ["Push further","When would a <b>deque</b> or <b>set</b> beat a list? (Hint: front-ops, membership.)"]]
+  },
+  "what is calculus?":{
+    Beginner:[["The one-line idea","Algebra is a <b>photo</b> (one moment). Calculus is the <b>video</b> — how things change and add up over time."],
+      ["Two halves",["<b>Derivative</b> = the speedometer (how fast right now)","<b>Integral</b> = the total collected (add up all the tiny bits)"]],
+      ["Picture it","Dripping tap: derivative = the drip rate, integral = water in the bucket after an hour."]],
+    Intermediate:[["Core","The study of change & accumulation via limits. Derivative = instantaneous rate; integral = signed area / antiderivative."],
+      ["Anchors",["<b>d/dx</b> linearises a curve locally (slope of the tangent)","Fundamental Theorem ties ∫ and d/dx as inverses","Optimisation = set derivative to 0"]],
+      ["Apply","Given v(t), how do you recover position and total distance? (They're not the same.)"]]
+  },
+  "explain photosynthesis":{
+    Beginner:[["In one breath","Plants eat <b>sunlight</b>. They take light + water + air (CO₂) and make their own food (sugar), releasing oxygen we breathe."],
+      ["The deal",["In: sunlight, water, carbon dioxide","Out: glucose (food) + oxygen","Happens in the green part — chlorophyll"]],
+      ["Remember","You breathe out CO₂, the plant breathes it in. Fair trade. 🌱"]],
+    Intermediate:[["Definition","Light energy → chemical energy in glucose. Two stages: light reactions (thylakoid) + Calvin cycle (stroma)."],
+      ["Key beats",["Light splits water → O₂, ATP, NADPH","Calvin cycle fixes CO₂ using ATP/NADPH","Net: 6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂"]],
+      ["Probe","Why does the Calvin cycle still need light, even though it's 'light-independent'?"]]
+  }
+};
+const SAMPLE_KEYS = Object.keys(SAMPLES);
+
+/* ── Nav ─────────────────────────────────────────────────────────────────── */
+const nav = document.getElementById('nav');
+function showView(v) {
+  document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.dataset.view === v));
+  nav.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  document.querySelector('.main').scrollTo({top:0, behavior:'smooth'});
+}
+nav.addEventListener('click', e => { const b = e.target.closest('button'); if (b) showView(b.dataset.v); });
+document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => showView(b.dataset.go));
+
+/* ── Rhythm strip ────────────────────────────────────────────────────────── */
+const RHYTHM = [
+  {d:"MON", icn:"🔁", lbl:"Revision & Plan",  mode:"Revision & Planning"},
+  {d:"TUE", icn:"📘", lbl:"Academic",          mode:"Academic Focus"},
+  {d:"WED", icn:"📘", lbl:"Academic",          mode:"Academic Focus"},
+  {d:"THU", icn:"📘", lbl:"Academic",          mode:"Academic Focus"},
+  {d:"FRI", icn:"🎮", lbl:"Flex · Quests",     mode:"Flex Day · Quests Unlocked"},
+  {d:"SAT", icn:"🏃", lbl:"Health & Move",     mode:"Health & Movement"},
+  {d:"SUN", icn:"🧭", lbl:"Explorer Drop",     mode:"Explorer · Awareness"},
+];
+function buildRhythm() {
+  const jsDay = new Date().getDay();
+  const idx   = jsDay === 0 ? 6 : jsDay - 1;
+  const wrap  = document.getElementById('rhythm');
+  wrap.innerHTML = '';
+  RHYTHM.forEach((r, i) => {
+    const el = document.createElement('div');
+    el.className = 'day' + (i === idx ? ' today' : '');
+    el.innerHTML = `<div class="d">${r.d}</div><div class="icn">${r.icn}</div><div class="lbl">${r.lbl}</div>`;
+    wrap.appendChild(el);
+  });
+  document.getElementById('todayMode').textContent = RHYTHM[idx].mode;
+  const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  document.getElementById('todayTitle').textContent = days[jsDay];
+  const acad = RHYTHM[idx].mode.includes("Academic");
+  document.getElementById('heroLine').textContent = acad
+    ? "It's an Academic day. Games are resting, the news is hidden — just you and the work. Drop your first question and let's get it."
+    : `It's ${RHYTHM[idx].mode}. The deck has shifted to match. Make today count.`;
+}
+
+/* ── Profile sync ────────────────────────────────────────────────────────── */
+function syncProfile() {
+  const AGE_LABELS = {u15:"Under 15", u18:"Under 18", college:"College", pro:"Working pro"};
+  document.getElementById('avatarInit').textContent  = (S.name[0] || 'S').toUpperCase();
+  document.getElementById('heroName').textContent    = S.name;
+  document.getElementById('statGoal').innerHTML      = `${S.goal} <span>· long road, started</span>`;
+  document.getElementById('pAge').textContent        = AGE_LABELS[S.age] || S.age;
+  document.getElementById('pGoal').textContent       = S.goal;
+  document.getElementById('pLevel').textContent      = S.level;
+  document.getElementById('pArch').textContent       = S.archetype;
+  document.getElementById('astraSub').textContent    = `Tuned for · ${AGE_LABELS[S.age] || S.age} · ${S.level}`;
+}
+
+/* ── Astra ───────────────────────────────────────────────────────────────── */
+function renderSuggest() {
+  const s = document.getElementById('suggest');
+  s.innerHTML = '';
+  SAMPLE_KEYS.forEach(q => {
+    const b = document.createElement('button');
+    b.textContent = q;
+    b.onclick = () => { document.getElementById('astraInput').value = q; askAstra(); };
+    s.appendChild(b);
+  });
+}
+function pushMsg(html, who) {
+  const m = document.createElement('div');
+  m.className = 'msg ' + who;
+  if (who === 'user') m.textContent = html; else m.innerHTML = html;
+  const st = document.getElementById('stream');
+  st.appendChild(m);
+  st.scrollTop = st.scrollHeight;
+}
+let cacheSeen   = new Set();
+let currentPuzzle = '';
+
+async function askAstra() {
+  const inp = document.getElementById('astraInput');
+  const q   = inp.value.trim();
+  if (!q) return;
+  pushMsg(q, 'user');
+  inp.value = '';
+  const route = document.getElementById('route');
+  route.textContent = '⟳ THINKING…';
+  route.className   = 'route';
+  const st      = document.getElementById('stream');
+  const thinking = document.createElement('div');
+  thinking.className = 'msg bot';
+  thinking.innerHTML = '<em style="color:var(--muted)">Astra is thinking…</em>';
+  st.appendChild(thinking);
+  st.scrollTop = st.scrollHeight;
+  try {
+    const res  = await fetch('/bouncer', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body:    JSON.stringify({ raw_prompt: q, subject: S.goal })
+    });
+    const data = await res.json();
+    st.removeChild(thinking);
+    const isCache = data.route === 'SERVED_FROM_CACHE';
+    route.textContent = isCache ? '⚡ CACHE · ₹0' : '✦ FRESH · GEMINI';
+    route.className   = 'route ' + (isCache ? 'cache' : 'fresh');
+    pushMsg(marked.parse(data.message), 'bot');
+  } catch (e) {
+    st.removeChild(thinking);
+    route.textContent = 'ERROR';
+    route.className   = 'route';
+    pushMsg('<b>Connection error.</b> Make sure the backend is running.', 'bot');
+  }
+}
+document.getElementById('astraInput').addEventListener('keydown', e => { if (e.key === 'Enter') askAstra(); });
+
+/* ── Quests ──────────────────────────────────────────────────────────────── */
+const MISSIONS = {
+  "Police Detective":{
+    Math:    ["A jewel thief bolts from the museum at a constant 6 m/s. Your patrol drone sits 150 m behind, and the thief reaches the exit gate in 20 seconds. Your drone flies at 10 m/s.", "<b>Puzzle:</b> Does the drone catch the thief before the gate? In how many seconds does it close the 150 m gap?"],
+    Physics: ["A suspect's car skids to a halt leaving 24 m of marks. You know the road's friction coefficient is 0.8.", "<b>Puzzle:</b> Using energy/kinematics, roughly how fast was the car going before braking?"]
+  },
+  "Aerospace Engineer":{
+    Physics: ["Your prototype rocket burns fuel for 12 s with a constant upward acceleration of 30 m/s², then the engine cuts.", "<b>Puzzle:</b> What's the velocity at engine cut-off, and how much higher does it coast before falling?"],
+    Math:    ["A satellite must orbit at a radius where it circles Earth every 90 minutes.", "<b>Puzzle:</b> Set up the equation linking orbital period, radius and gravity — what variable do you isolate?"]
+  },
+  "Cyber Defender":{
+    Math:    ["An attacker is brute-forcing a 4-digit PIN, trying 5 guesses per second. Your lockout triggers after 10,000 attempts.", "<b>Puzzle:</b> Worst case, how long until every PIN is exhausted — and does lockout save you?"],
+    Physics: ["A data centre must dissipate 4 kW of heat; each fan moves heat at 250 W.", "<b>Puzzle:</b> Minimum fans needed, and what happens to your margin if one fails?"]
+  },
+  "Surgeon":{
+    Biology: ["A patient's blood oxygen drops; you must reason from lungs → blood → tissue fast.", "<b>Puzzle:</b> Trace the oxygen path and name the one exchange surface where it enters the blood."],
+    Math:    ["A drug clears the body halving every 4 hours, starting at 200 mg.", "<b>Puzzle:</b> How much remains after 12 hours, and when does it fall under 25 mg?"]
+  }
+};
+
+async function launchMission() {
+  const car    = document.getElementById('qCar').value;
+  const sub    = document.getElementById('qSub').value;
+  const card   = document.getElementById('missionCard');
+  const storyEl  = document.getElementById('qStory');
+  const puzzleEl = document.getElementById('qPuzzle');
+  card.style.display = 'block';
+  storyEl.textContent = 'Game Master is designing your simulation…';
+  puzzleEl.innerHTML  = '';
+  document.getElementById('qFeed').className = 'feedback';
+  document.getElementById('qAns').value      = '';
+  currentPuzzle = '';
+  try {
+    const res  = await fetch('/mission', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body:    JSON.stringify({ career: car, subject: sub })
+    });
+    const data = await res.json();
+    if (data.status === 'error') { storyEl.textContent = data.message; return; }
+    storyEl.textContent = data.story;
+    puzzleEl.innerHTML  = `<b>Puzzle:</b> ${data.puzzle}`;
+    currentPuzzle       = data.puzzle;
+  } catch (e) {
+    storyEl.textContent = 'Connection error. Make sure the backend is running.';
+  }
+}
+
+async function solveMission() {
+  const ans = document.getElementById('qAns').value.trim();
+  if (!ans || !currentPuzzle) return;
+  const f = document.getElementById('qFeed');
+  f.className   = 'feedback';
+  f.style.display = 'block';
+  f.innerHTML   = '<em>Evaluating…</em>';
+  try {
+    const res  = await fetch('/solve_mission', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body:    JSON.stringify({ puzzle: currentPuzzle, student_answer: ans })
+    });
+    const data = await res.json();
+    if (data.is_correct) {
+      const xpEl = document.getElementById('xpN');
+      const newXp = parseInt(xpEl.textContent.replace(/,/g, '')) + 50;
+      xpEl.textContent = newXp.toLocaleString();
+      S.xp = newXp;
+      f.className = 'feedback win';
+      f.innerHTML = `<b>🎉 Mission cleared · +50 XP</b><br/>${marked.parse(data.feedback)}`;
+    } else {
+      f.className = 'feedback fail';
+      f.innerHTML = `<b>Not quite —</b> ${marked.parse(data.feedback)}`;
+    }
+  } catch (e) {
+    f.innerHTML = 'Connection error. Try again.';
+  }
+}
+
+/* ── Paths ───────────────────────────────────────────────────────────────── */
+const PATHS = {
+  python:[
+    ["done","Month 1 · Fundamentals",    "Variables, data types, lists & dicts, loops, if/else. Build a GPA calculator + a text adventure."],
+    ["done","Month 2 · Modular thinking","Functions (DRY), modules, file I/O, try/except. Build a Task Manager that saves to a file."],
+    ["now", "Month 3 · Specialise",      "Pick a lane: NumPy + Pandas (Data), Flask/Django (Web), or BeautifulSoup (Automation)."],
+    ["",    "Month 4 · Portfolio",        "Git/GitHub, basic OOP, one capstone (live weather app / stock tracker). Ship it publicly."]
+  ],
+  jee:[
+    ["done","Foundation lock",   "Core Class-11 concepts mapped. Weak spots flagged from your effort data."],
+    ["now", "Concept clarity",   "3 academic days/week on Physics + Maths. Astra explains, you re-derive, not memorise."],
+    ["",    "Problem reps",      "Daily mixed sets. Mistakes become flashcards, surfaced again on revision Mondays."],
+    ["",    "Mock & refine",     "Timed mocks, error log, taper. Calm head &gt; cram."]
+  ]
+};
+function renderPath(p) {
+  const r = document.getElementById('roadmap');
+  r.innerHTML = '';
+  PATHS[p].forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'node ' + n[0];
+    el.innerHTML = `<div class="mtitle">${n[1]} <span>${n[0]==='done'?'✓ done':n[0]==='now'?'• in progress':''}</span></div><div class="mdesc">${n[2]}</div>`;
+    r.appendChild(el);
+  });
+}
+document.getElementById('pathTabs').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  document.querySelectorAll('#pathTabs button').forEach(x => x.classList.toggle('on', x === b));
+  renderPath(b.dataset.p);
+});
+
+/* ── Spark / profile controls ────────────────────────────────────────────── */
+function buildArch() {
+  const g = document.getElementById('archGrid');
+  g.innerHTML = '';
+  ARCHETYPES.forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'panel glow arch' + (a.id === S.archetype ? ' sel-on' : '');
+    el.innerHTML = `<div class="emo">${a.emo}</div><h3>${a.title}</h3><p>${a.desc}</p><div class="for">${a.for}</div>`;
+    el.onclick = () => { S.archetype = a.id; buildArch(); applyArch(); persistProfile(); };
+    g.appendChild(el);
+  });
+}
+function applyArch() {
+  syncProfile();
+  const st = document.getElementById('stream');
+  st.innerHTML = `<div class="msg bot"><h4>Hey ${S.name} 👋</h4>${GREET[S.archetype]}</div>`;
+  cacheSeen.clear();
+}
+document.getElementById('sAge').onchange   = e => { S.age   = e.target.value;          syncProfile(); persistProfile(); };
+document.getElementById('sGoal').onchange  = e => { S.goal  = e.target.value;          syncProfile(); persistProfile(); };
+document.getElementById('sLevel').onchange = e => { S.level = e.target.value;          syncProfile(); persistProfile(); };
+document.getElementById('sName').onchange  = e => { S.name  = e.target.value || "Friend"; syncProfile(); persistProfile(); };
+
+/* ── Init ────────────────────────────────────────────────────────────────── */
+function init() {
+  buildRhythm();
+  renderSuggest();
+  renderPath('python');
+  setTimeout(() => {
+    document.getElementById('ringArc').style.transition    = 'stroke-dashoffset 1.3s cubic-bezier(.2,.7,.2,1)';
+    document.getElementById('ringArc').style.strokeDashoffset = 389 * (1 - 0.72);
+  }, 300);
+}
+init();
+enforceSecurity(); // async — drops cloak and populates profile after DB fetch
+</script>
+</body>
+</html>
