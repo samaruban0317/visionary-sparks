@@ -5,7 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google import genai
 from supabase import create_client, Client
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
+from typing import List
+import json
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -281,6 +283,44 @@ def get_profile(authorization: str = Header(None)):
         raise HTTPException(status_code=404, detail="Profile not found.")
         
     return result.data[0]
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+class CareerChatRequest(BaseModel):
+    messages: List[ChatMessage]
+
+CAREER_SYSTEM_PROMPT = (
+    "You are Classmate AI, a career and study roadmap assistant. "
+    "Help students (teens, college, professionals) create actionable "
+    "learning plans. Ask about their goal, current level, and time "
+    "available. Give specific milestones, resources, and timelines. "
+    "Keep responses under 150 words. Be encouraging and practical."
+)
+
+@app.post("/career-chat-public")
+def career_chat_public(request: CareerChatRequest):
+    contents = CAREER_SYSTEM_PROMPT + "\n\n"
+    for msg in request.messages:
+        role = "Student" if msg.role == "user" else "Classmate AI"
+        contents += f"{role}: {msg.content}\n"
+    contents += "Classmate AI:"
+
+    def stream_response():
+        try:
+            for chunk in ai_client.models.generate_content_stream(
+                model="gemini-3.1-flash-lite",
+                contents=contents
+            ):
+                if chunk.text:
+                    payload = json.dumps({"choices": [{"delta": {"content": chunk.text}}]})
+                    yield f"data: {payload}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(stream_response(), media_type="text/event-stream")
 
 @app.post("/update_profile")
 def update_profile(profile: ProfileUpdate, authorization: str = Header(None)):
