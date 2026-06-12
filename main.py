@@ -107,11 +107,12 @@ def process_incoming_prompt(request: StudentRequest, authorization: str = Header
         f"Student profile: age_band={age_band}, goal={goal}, level={level}, archetype={archetype}. "
         f"Archetype tone — Grinder: sharp, disciplined, exam-focused; "
         f"Innovator: curious, builder examples; Dreamer: big-picture, long-game framing. "
+        f"CRITICAL RULES: Never introduce yourself. Never say 'I am Astra' or 'Hello, I am'. "
+        f"Jump DIRECTLY to the answer in the first sentence. Keep response under 200 words. "
         f"Subject: {request.subject}. "
         f"Explain this concept for a {level} {age_band} student: '{normalized}'. "
         "Tune vocabulary depth and analogies to their level. Use bolding and bullet points."
     )
-
     try:
         core_response = ai_client.models.generate_content(
             model="gemini-3.1-flash-lite",
@@ -216,7 +217,7 @@ def solve_mission(request: MissionSolveRequest, authorization: str = Header(None
             status   = "UNKNOWN"
             feedback = ai_text
 
-        is_correct = "INCORRECT" not in status.upper()
+        is_correct = "CORRECT" in status.upper() and "INCORRECT" not in status.upper()
 
         # Increment total_xp in DB on a correct answer.
         # Wrapped in its own try/except so a DB hiccup never fails the grading response.
@@ -259,6 +260,8 @@ class ProfileUpdate(BaseModel):
     display_name: str
     current_goal: str
     archetype: str
+    age_band: str = "college"
+    level: str = "beginner"
 
 @app.get("/profile")
 def get_profile(authorization: str = Header(None)):
@@ -294,7 +297,9 @@ def update_profile(profile: ProfileUpdate, authorization: str = Header(None)):
         "user_id": user_response.user.id,
         "display_name": profile.display_name,
         "current_goal": profile.current_goal,
-        "archetype": profile.archetype
+        "archetype": profile.archetype,
+        "age_band": profile.age_band,
+        "level": profile.level
     }
     
     # Use db_admin to bypass RLS and save the profile
