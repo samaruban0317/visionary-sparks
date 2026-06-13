@@ -1,7 +1,7 @@
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google import genai
@@ -305,7 +305,7 @@ def process_incoming_prompt(request: StudentRequest, authorization: str = Header
 
     # --- LAYER 2: CACHE CHECK ---
     print(f"🔍 Searching cache for: '{cache_key}'")
-    db_response = db.table("mega_cache").select("*").eq("question", cache_key).execute()
+    db_response = db_admin.table("mega_cache").select("*").eq("question", cache_key).execute()
 
     if db_response.data:
         print("⚡ CACHE HIT!")
@@ -330,7 +330,7 @@ def process_incoming_prompt(request: StudentRequest, authorization: str = Header
             contents=teacher_instructions
         )
         generated_answer = core_response.text.strip()
-        db.table("mega_cache").insert({"question": cache_key, "answer": generated_answer}).execute()
+        db_admin.table("mega_cache").insert({"question": cache_key, "answer": generated_answer}).execute()
         return {"route": "GENERATED_NEW_RESPONSE", "message": generated_answer}
     except Exception as e:
         print(f"⚠️ Google API Error: {e}")
@@ -827,17 +827,14 @@ def delete_memory(memory_id: str, authorization: str = Header(None)):
 class MemoryExtract(BaseModel):
     conversation_id: str
 
-@app.post("/memory/extract")
-def extract_memory(body: MemoryExtract, authorization: str = Header(None)):
+def _run_memory_extraction(user_id, conversation_id):
     """One Gemini call over a conversation → durable facts about the student,
-    deduped into user_memory. Triggered sparingly by the client (e.g. on New chat)."""
-    user_id = require_user(authorization)
-    _own_conversation(user_id, body.conversation_id)
-
+    deduped into user_memory. Returns the list of newly added facts.
+    Raises on Gemini failure (callers decide how to handle)."""
     msgs = (db_admin.table("messages").select("role,content")
-            .eq("conversation_id", body.conversation_id).order("created_at").execute()).data or []
+            .eq("conversation_id", conversation_id).order("created_at").execute()).data or []
     if len(msgs) < 2:
-        return {"added": 0, "facts": []}
+        return []
 
     transcript = "\n".join(f"{m['role']}: {m['content']}" for m in msgs[-20:])[:6000]
     existing = {r["fact"].lower() for r in
@@ -851,12 +848,8 @@ def extract_memory(body: MemoryExtract, authorization: str = Header(None)):
         '(each a short sentence). If nothing durable, return {"facts": []}.\n\n'
         f"Conversation:\n{transcript}"
     )
-    try:
-        resp = ai_client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
-        facts = _extract_json(resp.text.strip()).get("facts", [])
-    except Exception as e:
-        print(f"⚠️ Memory extraction failed: {e}")
-        raise HTTPException(status_code=502, detail="Memory extraction failed.")
+    resp = ai_client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
+    facts = _extract_json(resp.text.strip()).get("facts", [])
 
     added = []
     for f in facts:
@@ -865,6 +858,30 @@ def extract_memory(body: MemoryExtract, authorization: str = Header(None)):
             db_admin.table("user_memory").insert({"user_id": user_id, "fact": f, "source": "chat"}).execute()
             existing.add(f.lower())
             added.append(f)
+    return added
+
+
+def _safe_memory_extraction(user_id, conversation_id):
+    """Fire-and-forget wrapper for background auto-extraction — never raises."""
+    try:
+        added = _run_memory_extraction(user_id, conversation_id)
+        if added:
+            print(f"🧠 Auto-extracted {len(added)} memory fact(s) for {user_id}")
+    except Exception as e:
+        print(f"⚠️ Background memory extraction failed: {e}")
+
+
+@app.post("/memory/extract")
+def extract_memory(body: MemoryExtract, authorization: str = Header(None)):
+    """Manual trigger (e.g. on New chat). Auto-extraction also runs every 6th
+    user message inside /astra/chat, so memory builds even without this call."""
+    user_id = require_user(authorization)
+    _own_conversation(user_id, body.conversation_id)
+    try:
+        added = _run_memory_extraction(user_id, body.conversation_id)
+    except Exception as e:
+        print(f"⚠️ Memory extraction failed: {e}")
+        raise HTTPException(status_code=502, detail="Memory extraction failed.")
     return {"added": len(added), "facts": added}
 
     # --- ASTRA CHAT (personalized, memory-aware, NON-cached) ---
@@ -874,7 +891,7 @@ class AstraChatRequest(BaseModel):
     conversation_id: str | None = None
 
 @app.post("/astra/chat")
-def astra_chat(body: AstraChatRequest, authorization: str = Header(None)):
+def astra_chat(body: AstraChatRequest, background_tasks: BackgroundTasks, authorization: str = Header(None)):
     """Conversational Astra that injects the user's profile, remembered facts,
     and recent message history. Always fresh — deliberately does NOT read or
     write the shared mega_cache (that cache is for /bouncer single questions)."""
@@ -911,6 +928,16 @@ def astra_chat(body: AstraChatRequest, authorization: str = Header(None)):
     db_admin.table("messages").insert(
         {"conversation_id": conversation_id, "role": "user", "content": msg}
     ).execute()
+
+    # Auto-build memory: every 6th user message, extract durable facts in the
+    # background (one cheap Gemini call, deduped). Non-blocking — the chat reply
+    # never waits on it, and a long single conversation still grows memory.
+    user_count = (db_admin.table("messages").select("id", count="exact")
+                  .eq("conversation_id", conversation_id).eq("role", "user")
+                  .execute()).count or 0
+    if user_count and user_count % 6 == 0:
+        background_tasks.add_task(_safe_memory_extraction, user_id, conversation_id)
+
     if convo.get("title") in (None, "", "New chat"):
         db_admin.table("conversations").update(
             {"title": msg.replace("\n", " ")[:48] or "New chat"}
