@@ -1039,35 +1039,6 @@ document.getElementById('astraInput').addEventListener('keydown', e => { if (e.k
 /* ── Chat history · conversations ────────────────────────────────────────── */
 let currentConversationId = null;
 
-async function ensureConversation() {
-  if (currentConversationId) return currentConversationId;
-  const res = await fetch('/conversations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
-    body: JSON.stringify({})
-  });
-  if (!res.ok) throw new Error('convo create failed');
-  currentConversationId = (await res.json()).id;
-  return currentConversationId;
-}
-
-async function saveMessage(role, content) {
-  const id = await ensureConversation();
-  await fetch(`/conversations/${id}/messages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
-    body: JSON.stringify({ role, content })
-  });
-}
-
-async function persistExchange(userText, botText) {
-  try {
-    await saveMessage('user', userText);
-    await saveMessage('assistant', botText);
-    loadConversations();
-  } catch (e) { /* history is best-effort; chat keeps working */ }
-}
-
 async function loadConversations() {
   try {
     const res = await fetch('/conversations', { headers: await getAuthHeader() });
@@ -1179,25 +1150,6 @@ async function deleteMemory(id) {
 }
 
 /* ── Quests ──────────────────────────────────────────────────────────────── */
-const MISSIONS = {
-  "Police Detective":{
-    Math:    ["A jewel thief bolts from the museum at a constant 6 m/s. Your patrol drone sits 150 m behind, and the thief reaches the exit gate in 20 seconds. Your drone flies at 10 m/s.", "<b>Puzzle:</b> Does the drone catch the thief before the gate? In how many seconds does it close the 150 m gap?"],
-    Physics: ["A suspect's car skids to a halt leaving 24 m of marks. You know the road's friction coefficient is 0.8.", "<b>Puzzle:</b> Using energy/kinematics, roughly how fast was the car going before braking?"]
-  },
-  "Aerospace Engineer":{
-    Physics: ["Your prototype rocket burns fuel for 12 s with a constant upward acceleration of 30 m/s², then the engine cuts.", "<b>Puzzle:</b> What's the velocity at engine cut-off, and how much higher does it coast before falling?"],
-    Math:    ["A satellite must orbit at a radius where it circles Earth every 90 minutes.", "<b>Puzzle:</b> Set up the equation linking orbital period, radius and gravity — what variable do you isolate?"]
-  },
-  "Cyber Defender":{
-    Math:    ["An attacker is brute-forcing a 4-digit PIN, trying 5 guesses per second. Your lockout triggers after 10,000 attempts.", "<b>Puzzle:</b> Worst case, how long until every PIN is exhausted — and does lockout save you?"],
-    Physics: ["A data centre must dissipate 4 kW of heat; each fan moves heat at 250 W.", "<b>Puzzle:</b> Minimum fans needed, and what happens to your margin if one fails?"]
-  },
-  "Surgeon":{
-    Biology: ["A patient's blood oxygen drops; you must reason from lungs → blood → tissue fast.", "<b>Puzzle:</b> Trace the oxygen path and name the one exchange surface where it enters the blood."],
-    Math:    ["A drug clears the body halving every 4 hours, starting at 200 mg.", "<b>Puzzle:</b> How much remains after 12 hours, and when does it fall under 25 mg?"]
-  }
-};
-
 async function launchMission() {
   const car    = document.getElementById('qCar').value;
   const sub    = document.getElementById('qSub').value;
@@ -1709,8 +1661,10 @@ async function loadReflections() {
     if (!res.ok) return;
     const data = await res.json();
     const list = document.getElementById('reflectList');
-    const today = new Date().toDateString();
-    const todayCount = data.reflections.filter(r => new Date(r.created_at).toDateString() === today).length;
+    // Count "today" in IST to match the server's daily cap (midnight IST), not the browser TZ.
+    const istDate = d => new Date(new Date(d).getTime() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
+    const today = istDate(Date.now());
+    const todayCount = data.reflections.filter(r => istDate(r.created_at) === today).length;
     document.getElementById('reflectCount').textContent = todayCount;
     list.innerHTML = data.reflections.slice(0, 5).map(r => {
       const d = new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
