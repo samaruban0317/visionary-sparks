@@ -290,7 +290,7 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:18px;height:18px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
       Sign Out
     </button>
-    <div class="foot">Engine routing: <b>bouncer → cache → gemini</b><br/>Cache hits cost <b>₹0</b>.</div>
+    <div class="foot">Astra is <b>profile-tuned</b> & <b>memory-aware</b><br/>Your plan, XP & streak live here.</div>
   </aside>
 
   <!-- MAIN -->
@@ -298,7 +298,7 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
     <div class="topbar">
       <div class="mode">Mode today · <b id="todayMode">Academic Focus</b></div>
       <div class="right">
-        <div class="chip streak" title="Hit a multiple of 7 days for a +100 XP bonus"><span class="dot"></span> <span id="streakN">6</span> day streak<span id="streakMile" style="margin-left:6px;color:var(--amber);font-family:'JetBrains Mono';font-size:11px"></span></div>
+        <div class="chip streak" title="Hit a multiple of 7 days for a +100 XP bonus"><span class="dot"></span> <span id="streakN">0</span> day streak<span id="streakMile" style="margin-left:6px;color:var(--amber);font-family:'JetBrains Mono';font-size:11px"></span></div>
         <div class="chip xp"><span class="dot"></span> <span id="xpN">0</span> XP</div>
         <div class="avatar" id="avatarInit">S</div>
       </div>
@@ -440,9 +440,9 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
           </div>
           <div class="panel card">
             <div class="k">How a reply is built</div>
-            <div class="pchip"><span>1 · Bouncer</span><b>strips the fluff</b></div>
-            <div class="pchip"><span>2 · Cache</span><b style="color:var(--lime)">hit = instant, ₹0</b></div>
-            <div class="pchip"><span>3 · Gemini</span><b>only on a miss</b></div>
+            <div class="pchip"><span>1 · Profile</span><b>tuned to you</b></div>
+            <div class="pchip"><span>2 · Memory</span><b style="color:var(--lime)">remembers context</b></div>
+            <div class="pchip"><span>3 · Gemini</span><b>fresh every time</b></div>
           </div>
           <button class="btn btn-g" style="width:100%" data-go="spark">Change your profile →</button>
         </div>
@@ -486,9 +486,10 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
         <div id="pfChatWrap" style="display:none;margin-top:16px;">
           <div id="pfMessages" style="max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px;"></div>
           <div id="pfReady" style="display:none;margin-top:12px;"></div>
-          <div id="pfInputRow" style="display:flex;gap:10px;margin-top:12px;">
-            <input id="pfInput" class="gc-input" placeholder="Type your answer…" style="flex:1;" onkeydown="if(event.key==='Enter')pfSend()">
+          <div id="pfInputRow" style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+            <input id="pfInput" class="gc-input" placeholder="Type your answer…" style="flex:1;min-width:0;" onkeydown="if(event.key==='Enter')pfSend()">
             <button class="btn btn-p" id="pfSendBtn" onclick="pfSend()">Send</button>
+            <button class="btn btn-g" id="pfResetBtn" onclick="pfReset()" title="Start over">↻</button>
           </div>
         </div>
       </div>
@@ -651,17 +652,21 @@ async function enforceSecurity() {
   currentUser = session.user;
   const isNewUser = new URLSearchParams(window.location.search).get('new_user') === 'true';
 
-  // Fetch real profile from DB
+  // Fetch real profile from DB. Distinguish "no profile yet" (404 → onboard)
+  // from a transient network/server error — we must NOT pop onboarding over an
+  // existing user during a Render cold start or a blip.
   let profile = null;
+  let profileMissing = false;
   try {
     const res = await fetch('/profile', { headers: await getAuthHeader() });
     if (res.ok) profile = await res.json();
+    else if (res.status === 404) profileMissing = true;
   } catch (e) {
-    console.warn('Profile fetch failed, using defaults:', e);
+    console.warn('Profile fetch failed (network):', e);
   }
 
-  // Show onboarding for new users or missing profiles
-  if (!profile || isNewUser) showOnboarding();
+  // Onboard only when the profile is genuinely missing or this is a fresh signup.
+  if (isNewUser || profileMissing) showOnboarding();
 
   // Populate S from DB data
   if (profile) {
@@ -1106,6 +1111,7 @@ async function openConversation(id) {
 }
 
 async function deleteConversation(id) {
+  if (!confirm('Delete this chat? This cannot be undone.')) return;
   try {
     await fetch(`/conversations/${id}`, { method: 'DELETE', headers: await getAuthHeader() });
     if (id === currentConversationId) newChat();
@@ -1258,13 +1264,27 @@ function esc(s) {
 let pfHistory = [];     // [{role:'user'|'assistant', content}]
 let pfStarted = false;
 let pfReadySpec = null;
+let pfDone = false;     // a roadmap was generated from this conversation
 
 function togglePathfinder() {
   const wrap = document.getElementById('pfChatWrap');
   const open = wrap.style.display !== 'none';
   wrap.style.display = open ? 'none' : 'block';
   document.getElementById('pfToggleBtn').textContent = open ? 'Start Pathfinder →' : 'Hide Pathfinder';
-  if (!open && !pfStarted) { pfStarted = true; pfCall([]); }   // opener (no model call)
+  if (!open) {
+    if (!pfStarted) { pfStarted = true; pfCall([]); }   // opener (no model call)
+    else if (pfDone) pfReset();                          // reopening after a finished run → fresh start
+  }
+}
+
+function pfReset() {
+  pfHistory = [];
+  pfReadySpec = null;
+  pfDone = false;
+  document.getElementById('pfMessages').innerHTML = '';
+  document.getElementById('pfReady').style.display = 'none';
+  document.getElementById('pfInputRow').style.display = 'flex';
+  pfCall([]);   // fresh opener
 }
 
 function pfBubble(role, text) {
@@ -1281,6 +1301,7 @@ function pfBubble(role, text) {
 }
 
 async function pfSend() {
+  if (document.getElementById('pfSendBtn').disabled) return;   // don't double-fire via Enter
   const inp = document.getElementById('pfInput');
   const text = inp.value.trim();
   if (!text) return;
@@ -1294,11 +1315,14 @@ async function pfCall(messages) {
   const btn = document.getElementById('pfSendBtn');
   btn.disabled = true;
   const typing = pfBubble('assistant', '…');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30000);   // don't hang forever on a slow turn
   try {
     const res = await fetch('/pathfinder/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
-      body: JSON.stringify({ messages })
+      body: JSON.stringify({ messages }),
+      signal: ctrl.signal
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Pathfinder hiccup — try again.');
@@ -1307,8 +1331,11 @@ async function pfCall(messages) {
     document.getElementById('pfMessages').scrollTop = 99999;
     if (data.ready && data.spec) pfShowReady(data.spec);
   } catch (e) {
-    typing.innerHTML = esc(e.message || 'Something went wrong.');
+    typing.innerHTML = esc(e.name === 'AbortError'
+      ? 'Pathfinder is thinking slowly — check your connection and try again.'
+      : (e.message || 'Something went wrong.'));
   } finally {
+    clearTimeout(timer);
     btn.disabled = false;
     document.getElementById('pfInput').focus();
   }
@@ -1363,6 +1390,7 @@ async function pfGenerate() {
     hint.textContent = data.warning || 'Roadmap ready ✦';
     goalsLoaded = false;
     await loadGoals();
+    pfDone = true;   // reopening Pathfinder later starts a fresh conversation
     document.getElementById('pfChatWrap').style.display = 'none';
     document.getElementById('pfToggleBtn').textContent = 'Start Pathfinder →';
     if (data.goal) document.querySelector(`[data-goal="${data.goal.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1534,8 +1562,10 @@ async function refreshXP() {
     document.getElementById('xpN').textContent = (s.total_xp || 0).toLocaleString();
     const streak = s.streak || 0;
     document.getElementById('streakN').textContent = streak;
-    // Next +100 bonus lands at the next multiple of 7 days.
-    document.getElementById('streakMile').textContent = streak > 0 ? `· ${7 - (streak % 7)}d to +100` : '';
+    // Next +100 bonus lands at the next multiple of 7 days (a multiple-of-7
+    // streak means the bonus was just earned today).
+    document.getElementById('streakMile').textContent =
+      streak <= 0 ? '' : (streak % 7 === 0 ? '· +100 streak bonus! 🔥' : `· ${7 - (streak % 7)}d to +100`);
     document.getElementById('xpTodayEarned').textContent = s.today_earned;
     const avail = s.today_earned + s.today_remaining_points;
     const pct = avail > 0 ? Math.round(100 * s.today_earned / avail) : 0;

@@ -1075,6 +1075,10 @@ def onboard(request: OnboardRequest, authorization: str = Header(None)):
         raise HTTPException(status_code=400, detail="Invalid username format.")
     if not (8 <= request.age <= 60):
         raise HTTPException(status_code=400, detail="Age must be between 8 and 60.")
+    if request.archetype not in ("Grinder", "Innovator", "Dreamer"):
+        raise HTTPException(status_code=400, detail="Invalid archetype.")
+    if request.level not in ("beginner", "intermediate"):
+        raise HTTPException(status_code=400, detail="Invalid level.")
 
     # Reject if the username is taken by someone else
     taken = db_admin.table("user_profiles").select("user_id").eq("username", uname).execute()
@@ -1299,6 +1303,10 @@ def update_profile(profile: ProfileUpdate, authorization: str = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid token")
     
     user_id = str(user_response.user.id)
+    if profile.archetype not in ("Grinder", "Innovator", "Dreamer"):
+        raise HTTPException(status_code=400, detail="Invalid archetype.")
+    if profile.level not in ("beginner", "intermediate"):
+        raise HTTPException(status_code=400, detail="Invalid level.")
     data = {
         "user_id": user_id,
         "display_name": profile.display_name,
