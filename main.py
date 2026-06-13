@@ -473,7 +473,9 @@ def _save_roadmap(user_id, goal, version):
            .eq("user_id", user_id).order("created_at", desc=True).limit(12).execute()).data or []
     facts = [m["fact"] for m in mem]
     content = generate_roadmap_content(profile, goal["title"], goal.get("detail"), goal["horizon"], facts=facts)
-    review_at = (datetime.now(timezone.utc) + timedelta(days=7)).date().isoformat()
+    # Long-term plans review monthly; short-term/weekly review weekly.
+    review_days = 30 if goal["horizon"] == "long" else 7
+    review_at = (datetime.now(timezone.utc) + timedelta(days=review_days)).date().isoformat()
     row = {
         "user_id": user_id,
         "goal_id": goal["id"],
@@ -594,16 +596,22 @@ def toggle_task(body: TaskToggle, authorization: str = Header(None)):
         raise HTTPException(status_code=404, detail="Task not found.")
     task = rows[0]
 
-    update = {"done": body.done}
     xp = {"awarded": False, "amount": 0, "event": "task_done"}
 
-    # Award only on the first time a task is completed, and only under the daily cap.
+    # Award only on the first completion, under the daily cap. The award is
+    # claimed atomically (filter on xp_awarded=False) so a double-click can't
+    # pass the in-memory check twice and pay XP twice.
     if body.done and not task["xp_awarded"]:
-        xp = try_award(user_id, "task_done", {"task_id": body.task_id})
-        if xp["awarded"]:
-            update["xp_awarded"] = True
+        claimed = (db_admin.table("daily_tasks")
+                   .update({"done": True, "xp_awarded": True})
+                   .eq("id", body.task_id).eq("user_id", user_id)
+                   .eq("xp_awarded", False).execute()).data
+        if claimed:
+            xp = try_award(user_id, "task_done", {"task_id": body.task_id})
+        return {"status": "success", "task_id": body.task_id, "done": True, "xp": xp}
 
-    db_admin.table("daily_tasks").update(update).eq("id", body.task_id).execute()
+    # Uncheck, or re-check an already-awarded task: just flip done (never claw XP).
+    db_admin.table("daily_tasks").update({"done": body.done}).eq("id", body.task_id).eq("user_id", user_id).execute()
     return {"status": "success", "task_id": body.task_id, "done": body.done, "xp": xp}
 
 
