@@ -420,6 +420,13 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
             <div class="pchip"><span>Archetype</span><span class="pill" id="pArch">Grinder</span></div>
           </div>
           <div class="panel card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <div class="k" style="margin:0">Chats</div>
+              <button onclick="newChat()" style="background:none;border:1px solid var(--line2);color:var(--cyan);font-family:'JetBrains Mono';font-size:10.5px;letter-spacing:.5px;padding:5px 10px;border-radius:20px;cursor:pointer">+ NEW</button>
+            </div>
+            <div id="chatList" style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto"></div>
+          </div>
+          <div class="panel card">
             <div class="k">How a reply is built</div>
             <div class="pchip"><span>1 · Bouncer</span><b>strips the fluff</b></div>
             <div class="pchip"><span>2 · Cache</span><b style="color:var(--lime)">hit = instant, ₹0</b></div>
@@ -495,6 +502,19 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
         <div class="sel"><label>Your name</label><input id="sName" value="Cadet" style="background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:14px;padding:12px 15px;border-radius:12px;outline:none;width:100%"/></div>
       </div>
       <div class="note panel" style="margin-top:22px"><span style="font-size:18px">⚡</span><div>Every switch here is saved to your profile and becomes a variable in the prompt + a segment in the cache key: <b>age|goal|level|subject|question</b>. That's how one engine serves a 15-year-old and a 21-year-old without re-asking Gemini twice.</div></div>
+
+      <div class="panel" style="padding:24px;margin-top:22px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div class="eyebrow" style="margin:0">What Astra Remembers</div>
+          <span style="font-size:11px;color:var(--faint);font-family:'JetBrains Mono'">grows as you chat</span>
+        </div>
+        <div class="sub" style="margin:0 0 16px">Durable facts pulled from your chats — your goals, level, and what you keep struggling with. You're in control: remove anything.</div>
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <input id="memInput" placeholder="Add something Astra should remember…" class="gc-input" style="flex:1">
+          <button class="btn btn-g" onclick="addMemory()" style="padding:11px 16px">Add</button>
+        </div>
+        <div id="memList"></div>
+      </div>
     </section>
 
     <!-- EXPLORER (locked preview) -->
@@ -871,6 +891,8 @@ function showView(v) {
   nav.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   document.querySelector('.main').scrollTo({top:0, behavior:'smooth'});
   if (v === 'paths') loadGoals();
+  if (v === 'astra') loadConversations();
+  if (v === 'spark') loadMemory();
 }
 nav.addEventListener('click', e => { const b = e.target.closest('button'); if (b) showView(b.dataset.v); });
 document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => showView(b.dataset.go));
@@ -967,6 +989,7 @@ async function askAstra() {
     route.textContent = isCache ? '⚡ CACHE · ₹0' : '✦ FRESH · GEMINI';
     route.className   = 'route ' + (isCache ? 'cache' : 'fresh');
     pushMsg(marked.parse(data.message), 'bot');
+    persistExchange(q, data.message);   // save to chat history (never blocks the UI)
   } catch (e) {
     st.removeChild(thinking);
     route.textContent = 'ERROR';
@@ -975,6 +998,147 @@ async function askAstra() {
   }
 }
 document.getElementById('astraInput').addEventListener('keydown', e => { if (e.key === 'Enter') askAstra(); });
+
+/* ── Chat history · conversations ────────────────────────────────────────── */
+let currentConversationId = null;
+
+async function ensureConversation() {
+  if (currentConversationId) return currentConversationId;
+  const res = await fetch('/conversations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+    body: JSON.stringify({})
+  });
+  if (!res.ok) throw new Error('convo create failed');
+  currentConversationId = (await res.json()).id;
+  return currentConversationId;
+}
+
+async function saveMessage(role, content) {
+  const id = await ensureConversation();
+  await fetch(`/conversations/${id}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+    body: JSON.stringify({ role, content })
+  });
+}
+
+async function persistExchange(userText, botText) {
+  try {
+    await saveMessage('user', userText);
+    await saveMessage('assistant', botText);
+    loadConversations();
+  } catch (e) { /* history is best-effort; chat keeps working */ }
+}
+
+async function loadConversations() {
+  try {
+    const res = await fetch('/conversations', { headers: await getAuthHeader() });
+    if (!res.ok) return;
+    const { conversations } = await res.json();
+    const list = document.getElementById('chatList');
+    if (!conversations.length) { list.innerHTML = '<div style="font-size:12.5px;color:var(--faint)">No chats yet.</div>'; return; }
+    list.innerHTML = conversations.map(c => {
+      const on = c.id === currentConversationId;
+      return `<div onclick="openConversation('${esc(c.id)}')" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;cursor:pointer;font-size:13px;border:1px solid ${on ? 'var(--violet)' : 'transparent'};background:${on ? 'rgba(124,92,255,.12)' : 'var(--panel2)'}">
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.title || 'New chat')}</span>
+        <span onclick="event.stopPropagation();deleteConversation('${esc(c.id)}')" title="Delete" style="color:var(--faint);font-size:15px">×</span>
+      </div>`;
+    }).join('');
+  } catch (e) {}
+}
+
+async function openConversation(id) {
+  try {
+    const res = await fetch(`/conversations/${id}/messages`, { headers: await getAuthHeader() });
+    if (!res.ok) return;
+    const { messages } = await res.json();
+    currentConversationId = id;
+    const st = document.getElementById('stream');
+    st.innerHTML = messages.length
+      ? messages.map(m => m.role === 'user'
+          ? `<div class="msg user"></div>`
+          : `<div class="msg bot">${marked.parse(m.content)}</div>`).join('')
+      : '';
+    // set user text safely (avoid HTML injection from textContent path)
+    let i = 0;
+    st.querySelectorAll('.msg.user').forEach(el => {
+      while (messages[i] && messages[i].role !== 'user') i++;
+      if (messages[i]) { el.textContent = messages[i].content; i++; }
+    });
+    st.scrollTop = st.scrollHeight;
+    document.getElementById('route').textContent = 'HISTORY';
+    document.getElementById('route').className = 'route';
+    loadConversations();
+  } catch (e) {}
+}
+
+async function deleteConversation(id) {
+  try {
+    await fetch(`/conversations/${id}`, { method: 'DELETE', headers: await getAuthHeader() });
+    if (id === currentConversationId) newChat();
+    else loadConversations();
+  } catch (e) {}
+}
+
+function newChat() {
+  // Extract durable memory from the chat we're leaving (sparingly, fire-and-forget).
+  if (currentConversationId) {
+    const leaving = currentConversationId;
+    getAuthHeader().then(h => fetch('/memory/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...h },
+      body: JSON.stringify({ conversation_id: leaving })
+    }).then(() => loadMemory()).catch(() => {}));
+  }
+  currentConversationId = null;
+  const st = document.getElementById('stream');
+  st.innerHTML = `<div class="msg bot"><h4>Hey ${esc(S.name)} 👋</h4>${GREET[S.archetype] || 'What are we cracking open today?'}</div>`;
+  document.getElementById('route').textContent = 'IDLE';
+  document.getElementById('route').className = 'route';
+  loadConversations();
+}
+
+/* ── Memory · what Astra remembers ───────────────────────────────────────── */
+async function loadMemory() {
+  try {
+    const res = await fetch('/memory', { headers: await getAuthHeader() });
+    if (!res.ok) return;
+    const { memory } = await res.json();
+    const list = document.getElementById('memList');
+    if (!list) return;
+    if (!memory.length) { list.innerHTML = '<div style="font-size:13px;color:var(--faint)">Nothing yet. Chat with Astra, then start a new chat — durable facts get saved here.</div>'; return; }
+    list.innerHTML = memory.map(m => `<div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-top:1px solid var(--line)">
+      <span style="color:var(--cyan);font-size:12px;margin-top:2px">◆</span>
+      <span style="flex:1;font-size:13.5px;color:var(--muted)">${esc(m.fact)}</span>
+      <span style="font-family:'JetBrains Mono';font-size:9px;color:var(--faint);border:1px solid var(--line);border-radius:20px;padding:2px 7px;white-space:nowrap">${esc(m.source || 'chat')}</span>
+      <span onclick="deleteMemory('${esc(m.id)}')" title="Forget this" style="color:var(--faint);cursor:pointer;font-size:16px;line-height:1">×</span>
+    </div>`).join('');
+  } catch (e) {}
+}
+
+async function addMemory() {
+  const inp = document.getElementById('memInput');
+  const fact = inp.value.trim();
+  if (!fact) return;
+  try {
+    const res = await fetch('/memory', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ fact })
+    });
+    if (!res.ok) return;
+    inp.value = '';
+    loadMemory();
+  } catch (e) {}
+}
+
+async function deleteMemory(id) {
+  try {
+    await fetch(`/memory/${id}`, { method: 'DELETE', headers: await getAuthHeader() });
+    loadMemory();
+  } catch (e) {}
+}
 
 /* ── Quests ──────────────────────────────────────────────────────────────── */
 const MISSIONS = {

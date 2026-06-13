@@ -719,6 +719,148 @@ def xp_summary(authorization: str = Header(None)):
         "opportunities": opportunities,
     }
 
+    # --- CONVERSATIONS + MESSAGES (chat history) ---
+
+def _own_conversation(user_id, conversation_id):
+    rows = (db_admin.table("conversations").select("*")
+            .eq("id", conversation_id).eq("user_id", user_id).execute()).data
+    if not rows:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    return rows[0]
+
+
+class ConversationCreate(BaseModel):
+    title: str | None = None
+
+@app.post("/conversations")
+def create_conversation(body: ConversationCreate, authorization: str = Header(None)):
+    user_id = require_user(authorization)
+    row = {"user_id": user_id}
+    if body.title and body.title.strip():
+        row["title"] = body.title.strip()[:120]
+    return db_admin.table("conversations").insert(row).execute().data[0]
+
+
+@app.get("/conversations")
+def list_conversations(authorization: str = Header(None)):
+    user_id = require_user(authorization)
+    rows = (db_admin.table("conversations").select("*")
+            .eq("user_id", user_id).order("created_at", desc=True).limit(50).execute()).data or []
+    return {"conversations": rows}
+
+
+@app.get("/conversations/{conversation_id}/messages")
+def get_messages(conversation_id: str, authorization: str = Header(None)):
+    user_id = require_user(authorization)
+    _own_conversation(user_id, conversation_id)
+    rows = (db_admin.table("messages").select("*")
+            .eq("conversation_id", conversation_id).order("created_at").execute()).data or []
+    return {"messages": rows}
+
+
+class MessageCreate(BaseModel):
+    role: str        # 'user' | 'assistant'
+    content: str
+
+@app.post("/conversations/{conversation_id}/messages")
+def add_message(conversation_id: str, body: MessageCreate, authorization: str = Header(None)):
+    user_id = require_user(authorization)
+    convo = _own_conversation(user_id, conversation_id)
+    if body.role not in ("user", "assistant"):
+        raise HTTPException(status_code=400, detail="role must be 'user' or 'assistant'.")
+    msg = (db_admin.table("messages").insert({
+        "conversation_id": conversation_id,
+        "role": body.role,
+        "content": (body.content or "")[:8000],
+    }).execute()).data[0]
+    # Auto-title the conversation from the first user message.
+    if body.role == "user" and convo.get("title") in (None, "", "New chat"):
+        title = (body.content or "").strip().replace("\n", " ")[:48] or "New chat"
+        db_admin.table("conversations").update({"title": title}).eq("id", conversation_id).execute()
+    return msg
+
+
+@app.delete("/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str, authorization: str = Header(None)):
+    user_id = require_user(authorization)
+    _own_conversation(user_id, conversation_id)
+    db_admin.table("conversations").delete().eq("id", conversation_id).eq("user_id", user_id).execute()
+    return {"status": "success"}
+
+
+    # --- USER MEMORY (facts Astra remembers) ---
+
+@app.get("/memory")
+def get_memory(authorization: str = Header(None)):
+    user_id = require_user(authorization)
+    rows = (db_admin.table("user_memory").select("*")
+            .eq("user_id", user_id).order("created_at", desc=True).execute()).data or []
+    return {"memory": rows}
+
+
+class MemoryAdd(BaseModel):
+    fact: str
+
+@app.post("/memory")
+def add_memory(body: MemoryAdd, authorization: str = Header(None)):
+    user_id = require_user(authorization)
+    fact = (body.fact or "").strip()[:300]
+    if not fact:
+        raise HTTPException(status_code=400, detail="Fact cannot be empty.")
+    return (db_admin.table("user_memory")
+            .insert({"user_id": user_id, "fact": fact, "source": "manual"}).execute()).data[0]
+
+
+@app.delete("/memory/{memory_id}")
+def delete_memory(memory_id: str, authorization: str = Header(None)):
+    user_id = require_user(authorization)
+    db_admin.table("user_memory").delete().eq("id", memory_id).eq("user_id", user_id).execute()
+    return {"status": "success"}
+
+
+class MemoryExtract(BaseModel):
+    conversation_id: str
+
+@app.post("/memory/extract")
+def extract_memory(body: MemoryExtract, authorization: str = Header(None)):
+    """One Gemini call over a conversation → durable facts about the student,
+    deduped into user_memory. Triggered sparingly by the client (e.g. on New chat)."""
+    user_id = require_user(authorization)
+    _own_conversation(user_id, body.conversation_id)
+
+    msgs = (db_admin.table("messages").select("role,content")
+            .eq("conversation_id", body.conversation_id).order("created_at").execute()).data or []
+    if len(msgs) < 2:
+        return {"added": 0, "facts": []}
+
+    transcript = "\n".join(f"{m['role']}: {m['content']}" for m in msgs[-20:])[:6000]
+    existing = {r["fact"].lower() for r in
+                (db_admin.table("user_memory").select("fact").eq("user_id", user_id).execute()).data or []}
+
+    prompt = (
+        "Extract durable, useful facts about the STUDENT from this conversation — "
+        "their goals, level, interests, recurring struggles, and preferences. "
+        "Ignore one-off question content and anything not lasting. "
+        'Return STRICT JSON ONLY: {"facts": ["short fact", ...]} with at most 5 concise facts '
+        '(each a short sentence). If nothing durable, return {"facts": []}.\n\n'
+        f"Conversation:\n{transcript}"
+    )
+    try:
+        resp = ai_client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
+        facts = _extract_json(resp.text.strip()).get("facts", [])
+    except Exception as e:
+        print(f"⚠️ Memory extraction failed: {e}")
+        raise HTTPException(status_code=502, detail="Memory extraction failed.")
+
+    added = []
+    for f in facts:
+        f = str(f).strip()[:300]
+        if f and f.lower() not in existing:
+            db_admin.table("user_memory").insert({"user_id": user_id, "fact": f, "source": "chat"}).execute()
+            existing.add(f.lower())
+            added.append(f)
+    return {"added": len(added), "facts": added}
+
     # --- USERNAME AUTH ---
 
 @app.get("/auth/check-username")
