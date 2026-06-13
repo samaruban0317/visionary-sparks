@@ -95,6 +95,7 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
 /* dashboard grid */
 .grid{display:grid;gap:18px}
 .g-hero{grid-template-columns:1.6fr 1fr;margin-top:22px}
+.consist-grid{grid-template-columns:1.6fr 1fr;margin-top:18px}
 .hero{padding:28px;overflow:hidden}
 .hero .hi{font-family:'Bricolage Grotesque';font-weight:800;font-size:32px;letter-spacing:-.6px;line-height:1.1}
 .hero .hi em{font-style:normal;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -263,7 +264,7 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
 .locked .ph{display:inline-flex;gap:8px;margin-top:18px;flex-wrap:wrap;justify-content:center}
 .locked .ph span{font-size:12px;color:var(--faint);border:1px solid var(--line);padding:6px 12px;border-radius:20px}
 
-@media(max-width:900px){.app{grid-template-columns:1fr}.rail{display:none}.g-hero,.astra-wrap,.stat-row,.arch-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.app{grid-template-columns:1fr}.rail{display:none}.g-hero,.astra-wrap,.stat-row,.arch-grid,.consist-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -297,7 +298,7 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
     <div class="topbar">
       <div class="mode">Mode today · <b id="todayMode">Academic Focus</b></div>
       <div class="right">
-        <div class="chip streak"><span class="dot"></span> <span id="streakN">6</span> day streak</div>
+        <div class="chip streak" title="Hit a multiple of 7 days for a +100 XP bonus"><span class="dot"></span> <span id="streakN">6</span> day streak<span id="streakMile" style="margin-left:6px;color:var(--amber);font-family:'JetBrains Mono';font-size:11px"></span></div>
         <div class="chip xp"><span class="dot"></span> <span id="xpN">0</span> XP</div>
         <div class="avatar" id="avatarInit">S</div>
       </div>
@@ -342,7 +343,7 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
         </div>
 
         <!-- CONSISTENCY LOOP: today's tasks + XP today -->
-        <div class="grid" style="grid-template-columns:1.6fr 1fr;margin-top:18px" id="consistencyGrid">
+        <div class="grid consist-grid" id="consistencyGrid">
           <div class="panel" style="padding:22px">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
               <div class="eyebrow" style="margin:0">Today's Tasks</div>
@@ -1381,7 +1382,10 @@ async function refreshXP() {
     const s = await res.json();
     S.xp = s.total_xp;
     document.getElementById('xpN').textContent = (s.total_xp || 0).toLocaleString();
-    document.getElementById('streakN').textContent = s.streak;
+    const streak = s.streak || 0;
+    document.getElementById('streakN').textContent = streak;
+    // Next +100 bonus lands at the next multiple of 7 days.
+    document.getElementById('streakMile').textContent = streak > 0 ? `· ${7 - (streak % 7)}d to +100` : '';
     document.getElementById('xpTodayEarned').textContent = s.today_earned;
     const avail = s.today_earned + s.today_remaining_points;
     const pct = avail > 0 ? Math.round(100 * s.today_earned / avail) : 0;
@@ -1408,7 +1412,11 @@ function renderTasks(data) {
   const wrap = document.getElementById('todayTasks');
   document.getElementById('tasksProgress').textContent = `${data.done}/${data.total}`;
   if (!data.has_roadmap) {
-    wrap.innerHTML = `<div class="tasks-empty">No active roadmap yet. <a onclick="showView('paths')" style="color:var(--violet);cursor:pointer">Create a goal in Paths →</a> and your daily tasks appear here.</div>`;
+    wrap.innerHTML = `<div class="tasks-empty" style="text-align:center;padding:24px 12px">
+      <div style="font-family:'Bricolage Grotesque';font-weight:800;font-size:16px;color:var(--text);margin-bottom:6px">No roadmap yet 🧭</div>
+      <div style="margin-bottom:16px;max-width:340px;margin-left:auto;margin-right:auto">Your daily tasks come from a personal roadmap. Declare a goal and Astra drafts yours in seconds.</div>
+      <button class="btn btn-p" onclick="showView('paths')" style="padding:11px 22px">Build my roadmap →</button>
+    </div>`;
     return;
   }
   wrap.innerHTML = data.tasks.map(t => `
