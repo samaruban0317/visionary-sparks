@@ -267,6 +267,21 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
       </div>
     </div>
 
+    <!-- COMPLETE-PROFILE BANNER (existing users missing username/age) -->
+    <div id="completeBanner" style="display:none;margin:18px 34px 0;padding:16px 20px;border-radius:14px;background:linear-gradient(120deg,rgba(124,92,255,.16),rgba(34,211,238,.06));border:1px solid var(--line2);">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;">
+          <div style="font-family:'Bricolage Grotesque';font-weight:800;font-size:15px;">Finish setting up your Spark ✨</div>
+          <div style="color:var(--muted);font-size:13px;margin-top:3px;">Add your username and exact age so Astra can tune answers and you can log in by name.</div>
+        </div>
+        <input id="cbUsername" placeholder="username" autocomplete="off" style="background:var(--ink2);border:1px solid var(--line);border-radius:11px;padding:11px 13px;color:var(--text);font-family:inherit;font-size:13.5px;outline:none;width:150px;">
+        <input id="cbAge" type="number" min="8" max="60" placeholder="age" style="background:var(--ink2);border:1px solid var(--line);border-radius:11px;padding:11px 13px;color:var(--text);font-family:inherit;font-size:13.5px;outline:none;width:80px;">
+        <button class="btn btn-p" id="cbSave" onclick="saveCompleteProfile()" style="padding:11px 18px;">Save</button>
+        <button onclick="document.getElementById('completeBanner').style.display='none'" title="Dismiss for now" style="background:none;border:none;color:var(--faint);font-size:20px;cursor:pointer;line-height:1;padding:0 4px;">×</button>
+      </div>
+      <div id="cbHint" style="font-family:'JetBrains Mono';font-size:11px;margin-top:8px;height:14px;color:var(--faint);"></div>
+    </div>
+
     <!-- TODAY -->
     <section class="view on" data-view="today">
       <div class="stagger">
@@ -497,6 +512,16 @@ async function enforceSecurity() {
     S.goal      = profile.current_goal || 'JEE';
     S.level     = capitalize(profile.level) || 'Beginner';
     S.xp        = profile.total_xp     || 0;
+
+    // Existing user with a profile but missing the new username/age fields → nudge them
+    if (!isNewUser && (!profile.username || profile.age == null)) {
+      const banner = document.getElementById('completeBanner');
+      if (banner) {
+        if (profile.username) document.getElementById('cbUsername').value = profile.username;
+        if (profile.age != null) document.getElementById('cbAge').value = profile.age;
+        banner.style.display = 'block';
+      }
+    }
   } else {
     S.name = currentUser.email.split('@')[0];
   }
@@ -600,6 +625,60 @@ async function persistProfile() {
     });
   } catch (e) {
     console.warn('Profile save failed:', e);
+  }
+}
+
+/* ── Complete-profile banner (existing users) ────────────────────────────── */
+async function saveCompleteProfile() {
+  const uname = document.getElementById('cbUsername').value.trim().toLowerCase();
+  const age   = parseInt(document.getElementById('cbAge').value, 10);
+  const hint  = document.getElementById('cbHint');
+  const btn   = document.getElementById('cbSave');
+
+  if (!/^[a-z0-9_]{3,20}$/.test(uname)) {
+    hint.style.color = 'var(--rose)';
+    hint.textContent = 'Username: 3–20 chars, a-z 0-9 _';
+    return;
+  }
+  if (!age || age < 8 || age > 60) {
+    hint.style.color = 'var(--rose)';
+    hint.textContent = 'Enter a valid age (8–60).';
+    return;
+  }
+
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'Saving…';
+  hint.style.color = 'var(--faint)';
+  hint.textContent = '';
+  try {
+    const res = await fetch('/update_profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({
+        display_name: S.name,
+        current_goal: S.goal,
+        archetype:    S.archetype,
+        age_band:     S.age,           // server recomputes from age below
+        level:        S.level.toLowerCase(),
+        age:          age,
+        username:     uname
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Save failed');
+    }
+    // Reflect the new server-computed age_band locally
+    S.age = age <= 14 ? 'u15' : age <= 18 ? 'u18' : age <= 22 ? 'college' : 'pro';
+    document.getElementById('sAge').value = S.age;
+    syncProfile();
+    document.getElementById('completeBanner').style.display = 'none';
+  } catch (e) {
+    hint.style.color = 'var(--rose)';
+    hint.textContent = e.message;
+    btn.disabled = false;
+    btn.textContent = old;
   }
 }
 
