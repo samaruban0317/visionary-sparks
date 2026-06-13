@@ -1542,7 +1542,6 @@ document.getElementById('sName').onchange  = e => { S.name  = e.target.value || 
 function init() {
   buildRhythm();
   renderSuggest();
-  renderPath('python');
   setTimeout(() => {
     document.getElementById('ringArc').style.transition    = 'stroke-dashoffset 1.3s cubic-bezier(.2,.7,.2,1)';
     document.getElementById('ringArc').style.strokeDashoffset = 389 * (1 - 0.72);
