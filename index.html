@@ -227,6 +227,21 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
 .goal-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
 .goal-actions .btn{padding:10px 15px;font-size:13px}
 .goals-empty{padding:40px;text-align:center;color:var(--muted)}
+/* consistency loop: tasks + xp */
+.task-row{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;margin-bottom:8px;transition:.15s}
+.task-row:hover{border-color:var(--violet)}
+.task-check{width:22px;height:22px;border-radius:7px;border:2px solid var(--line2);display:grid;place-items:center;font-size:13px;color:var(--lime);flex:0 0 auto}
+.task-row.done{opacity:.65}
+.task-row.done .task-check{background:rgba(134,255,107,.15);border-color:var(--lime)}
+.task-row.done .task-title{text-decoration:line-through;color:var(--faint)}
+.task-title{font-size:14px;line-height:1.4}
+.tasks-empty{color:var(--muted);font-size:13.5px;padding:8px 2px;line-height:1.5}
+.xp-opp{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.xp-opp .pt{font-family:'JetBrains Mono';color:var(--cyan);font-size:11px;border:1px solid rgba(34,211,238,.3);border-radius:20px;padding:2px 8px;flex:0 0 auto}
+.xp-toast{position:fixed;right:26px;bottom:26px;z-index:300;display:flex;flex-direction:column;gap:10px;align-items:flex-end;pointer-events:none}
+.xp-pop{font-family:'Bricolage Grotesque';font-weight:800;font-size:15px;background:var(--grad);color:#fff;padding:11px 17px;border-radius:13px;box-shadow:0 10px 30px rgba(124,92,255,.5);animation:xpRise .45s cubic-bezier(.2,.7,.2,1),xpFade .5s ease 1.9s forwards}
+@keyframes xpRise{from{opacity:0;transform:translateY(18px) scale(.92)}to{opacity:1;transform:none}}
+@keyframes xpFade{to{opacity:0;transform:translateY(-12px)}}
 
 /* ---------- Spark / profile ---------- */
 .arch-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
@@ -323,6 +338,28 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
               <div class="num">72<small>EFFORT</small></div>
             </div>
             <p>This week you showed up <b>5 of 6 planned days</b>. We track effort, not marks.</p>
+          </div>
+        </div>
+
+        <!-- CONSISTENCY LOOP: today's tasks + XP today -->
+        <div class="grid" style="grid-template-columns:1.6fr 1fr;margin-top:18px" id="consistencyGrid">
+          <div class="panel" style="padding:22px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="eyebrow" style="margin:0">Today's Tasks</div>
+              <span class="chip" style="padding:5px 11px"><span id="tasksProgress">0/0</span></span>
+            </div>
+            <div id="todayTasks"><div class="tasks-empty">Loading…</div></div>
+          </div>
+          <div class="panel glow" style="padding:22px">
+            <div class="eyebrow" style="margin:0">XP Today</div>
+            <div style="font-family:'Bricolage Grotesque';font-weight:800;font-size:32px;line-height:1;margin-top:10px">
+              <span id="xpTodayEarned" style="color:var(--cyan)">0</span>
+              <span style="color:var(--faint);font-size:15px;font-family:'Hanken Grotesk';font-weight:500">earned</span>
+            </div>
+            <div style="height:10px;border-radius:8px;background:var(--panel2);overflow:hidden;border:1px solid var(--line);margin-top:14px">
+              <div id="xpTodayBar" style="height:100%;width:0%;background:var(--grad);transition:width .6s cubic-bezier(.2,.7,.2,1)"></div>
+            </div>
+            <div id="xpOpps" style="display:flex;flex-direction:column;gap:8px;margin-top:16px"></div>
           </div>
         </div>
 
@@ -508,6 +545,9 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
   </div>
 </div>
 
+<!-- XP gain toasts -->
+<div class="xp-toast" id="xpToast"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ── State ───────────────────────────────────────────────────────────────── */
@@ -595,6 +635,9 @@ async function enforceSecurity() {
   document.getElementById('sName').value       = S.name;
   syncProfile();
   buildArch();
+
+  // Daily consistency loop: login bonus → XP summary → today's tasks
+  initConsistency();
 }
 
 function capitalize(str) {
@@ -982,12 +1025,11 @@ async function solveMission() {
     });
     const data = await res.json();
     if (data.is_correct) {
-      const xpEl = document.getElementById('xpN');
-      const newXp = parseInt(xpEl.textContent.replace(/,/g, '')) + 50;
-      xpEl.textContent = newXp.toLocaleString();
-      S.xp = newXp;
+      const gain = data.xp_gain || 0;
+      if (gain > 0) xpToast(gain, 'mission cleared');
+      refreshXP();   // pull authoritative total from the ledger
       f.className = 'feedback win';
-      f.innerHTML = `<b>🎉 Mission cleared · +50 XP</b><br/>${marked.parse(data.feedback)}`;
+      f.innerHTML = `<b>🎉 Mission cleared · +${gain} XP</b><br/>${marked.parse(data.feedback)}`;
     } else {
       f.className = 'feedback fail';
       f.innerHTML = `<b>Not quite —</b> ${marked.parse(data.feedback)}`;
@@ -1137,9 +1179,96 @@ async function setGoalStatus(goalId, status) {
     });
     if (!res.ok) throw new Error('Update failed');
     await loadGoals();
+    loadTodayTasks();   // active-goal change can change today's tasks
   } catch (e) {
     alert(e.message);
   }
+}
+
+/* ── Consistency loop · daily tasks + XP ─────────────────────────────────── */
+function xpToast(amount, label) {
+  const c = document.getElementById('xpToast');
+  const el = document.createElement('div');
+  el.className = 'xp-pop';
+  el.textContent = `+${amount} XP${label ? ' · ' + label : ''}`;
+  c.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+async function refreshXP() {
+  try {
+    const res = await fetch('/xp/summary', { headers: await getAuthHeader() });
+    if (!res.ok) return;
+    const s = await res.json();
+    S.xp = s.total_xp;
+    document.getElementById('xpN').textContent = (s.total_xp || 0).toLocaleString();
+    document.getElementById('streakN').textContent = s.streak;
+    document.getElementById('xpTodayEarned').textContent = s.today_earned;
+    const avail = s.today_earned + s.today_remaining_points;
+    const pct = avail > 0 ? Math.round(100 * s.today_earned / avail) : 0;
+    document.getElementById('xpTodayBar').style.width = pct + '%';
+    const opps = document.getElementById('xpOpps');
+    opps.innerHTML = (s.opportunities && s.opportunities.length)
+      ? s.opportunities.map(o => `<div class="xp-opp"><span class="pt">+${o.points}</span> ${esc(o.label)}</div>`).join('')
+      : '<div class="xp-opp" style="color:var(--lime)">All daily XP claimed today 🔥</div>';
+  } catch (e) {}
+}
+
+async function loadTodayTasks() {
+  const wrap = document.getElementById('todayTasks');
+  try {
+    const res = await fetch('/tasks/today', { headers: await getAuthHeader() });
+    if (!res.ok) throw new Error();
+    renderTasks(await res.json());
+  } catch (e) {
+    wrap.innerHTML = '<div class="tasks-empty">Couldn\'t load tasks. Refresh to retry.</div>';
+  }
+}
+
+function renderTasks(data) {
+  const wrap = document.getElementById('todayTasks');
+  document.getElementById('tasksProgress').textContent = `${data.done}/${data.total}`;
+  if (!data.has_roadmap) {
+    wrap.innerHTML = `<div class="tasks-empty">No active roadmap yet. <a onclick="showView('paths')" style="color:var(--violet);cursor:pointer">Create a goal in Paths →</a> and your daily tasks appear here.</div>`;
+    return;
+  }
+  wrap.innerHTML = data.tasks.map(t => `
+    <div class="task-row${t.done ? ' done' : ''}" onclick="toggleTask('${esc(t.id)}', ${!t.done}, this)">
+      <span class="task-check">${t.done ? '✓' : ''}</span>
+      <span class="task-title">${esc(t.title)}</span>
+    </div>`).join('');
+}
+
+async function toggleTask(id, done, el) {
+  el.style.pointerEvents = 'none';
+  try {
+    const res = await fetch('/tasks/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ task_id: id, done })
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    if (data.xp && data.xp.awarded) xpToast(data.xp.amount, 'task done');
+    await loadTodayTasks();
+    refreshXP();
+  } catch (e) {
+    el.style.pointerEvents = '';
+  }
+}
+
+async function initConsistency() {
+  try {
+    const res = await fetch('/xp/login-bonus', { method: 'POST', headers: await getAuthHeader() });
+    if (res.ok) {
+      const b = await res.json();
+      if (b.awarded) xpToast(b.amount, 'daily login');
+      if (b.streak_bonus && b.streak_bonus.awarded)
+        setTimeout(() => xpToast(b.streak_bonus.amount, `${b.streak_bonus.streak}-day streak!`), 700);
+    }
+  } catch (e) {}
+  refreshXP();
+  loadTodayTasks();
 }
 
 /* ── Spark / profile controls ────────────────────────────────────────────── */

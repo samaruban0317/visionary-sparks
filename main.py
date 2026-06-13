@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -108,6 +109,125 @@ def generate_roadmap_content(profile, title, detail, horizon):
 def _profile_for(user_id):
     res = db_admin.table("user_profiles").select("*").eq("user_id", user_id).execute()
     return res.data[0] if res.data else {}
+
+
+# ============================================================
+# XP ECONOMY (server-authoritative — all XP flows through xp_events)
+# ============================================================
+IST = timezone(timedelta(hours=5, minutes=30))   # day boundary = midnight IST
+
+# event_type -> (amount, daily cap). cap None = no daily limit.
+XP_RULES = {
+    "daily_login":   {"amount": 10,  "cap": 1},
+    "task_done":     {"amount": 20,  "cap": 5},
+    "quest_cleared": {"amount": 50,  "cap": None},
+    "streak_7":      {"amount": 100, "cap": None},
+}
+DAILY_TASK_COUNT = 3   # tasks surfaced from the roadmap each day
+
+
+def _ist_today():
+    return datetime.now(IST).date()
+
+
+def _ist_today_start_iso():
+    start_ist = datetime.now(IST).replace(hour=0, minute=0, second=0, microsecond=0)
+    return start_ist.astimezone(timezone.utc).isoformat()
+
+
+def _parse_ts(s):
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def count_events_today(user_id, event_type):
+    start = _ist_today_start_iso()
+    r = (db_admin.table("xp_events").select("id")
+         .eq("user_id", user_id).eq("event_type", event_type)
+         .gte("created_at", start).execute())
+    return len(r.data or [])
+
+
+def award_xp(user_id, event_type, amount, meta=None):
+    """Append to the ledger and keep the user_profiles.total_xp mirror in sync."""
+    db_admin.table("xp_events").insert({
+        "user_id": user_id, "event_type": event_type, "amount": amount, "meta": meta or {}
+    }).execute()
+    cur = db_admin.table("user_profiles").select("total_xp").eq("user_id", user_id).execute()
+    if cur.data:
+        new_total = (cur.data[0]["total_xp"] or 0) + amount
+        db_admin.table("user_profiles").update({"total_xp": new_total}).eq("user_id", user_id).execute()
+
+
+def try_award(user_id, event_type, meta=None):
+    """Award XP if the daily cap hasn't been hit. Returns a result dict."""
+    rule = XP_RULES[event_type]
+    if rule["cap"] is not None and count_events_today(user_id, event_type) >= rule["cap"]:
+        return {"awarded": False, "amount": 0, "event": event_type, "reason": "daily_cap"}
+    award_xp(user_id, event_type, rule["amount"], meta)
+    return {"awarded": True, "amount": rule["amount"], "event": event_type}
+
+
+def compute_login_streak(user_id):
+    """Consecutive days (IST) ending today that have a daily_login event."""
+    since = (datetime.now(IST) - timedelta(days=120)).astimezone(timezone.utc).isoformat()
+    r = (db_admin.table("xp_events").select("created_at")
+         .eq("user_id", user_id).eq("event_type", "daily_login")
+         .gte("created_at", since).execute())
+    days = {_parse_ts(row["created_at"]).astimezone(IST).date() for row in (r.data or [])}
+    today, streak, d = _ist_today(), 0, _ist_today()
+    while d in days:
+        streak += 1
+        d -= timedelta(days=1)
+    return streak
+
+
+# ---- Daily tasks: turn a roadmap into today's checkboxes ----
+
+def _flatten_roadmap_tasks(content):
+    """Ordered list of task strings across all milestones."""
+    tasks = []
+    for m in (content or {}).get("milestones", []):
+        for t in m.get("tasks", []):
+            if isinstance(t, str) and t.strip():
+                tasks.append(t.strip())
+    return tasks
+
+
+def ensure_today_tasks(user_id):
+    """Idempotently materialize today's daily tasks from the user's active roadmap.
+    Walks through the roadmap over days; recycles from the start once exhausted."""
+    today = _ist_today().isoformat()
+    existing = (db_admin.table("daily_tasks").select("*")
+                .eq("user_id", user_id).eq("task_date", today)
+                .order("created_at").execute()).data or []
+    if existing:
+        return existing
+
+    # Most recent active goal → its latest roadmap
+    goals = (db_admin.table("goals").select("id")
+             .eq("user_id", user_id).eq("status", "active")
+             .order("created_at", desc=True).limit(1).execute()).data
+    if not goals:
+        return []
+    goal_id = goals[0]["id"]
+    rm = (db_admin.table("roadmaps").select("id,content")
+          .eq("goal_id", goal_id).order("version", desc=True).limit(1).execute()).data
+    if not rm:
+        return []
+    roadmap_id, content = rm[0]["id"], rm[0]["content"]
+
+    flat = _flatten_roadmap_tasks(content)
+    if not flat:
+        return []
+
+    used = {row["title"] for row in (db_admin.table("daily_tasks").select("title")
+            .eq("user_id", user_id).eq("roadmap_id", roadmap_id).execute()).data or []}
+    pool = [t for t in flat if t not in used] or flat   # recycle if exhausted
+    picks = pool[:DAILY_TASK_COUNT]
+
+    rows = [{"user_id": user_id, "roadmap_id": roadmap_id, "task_date": today, "title": t} for t in picks]
+    inserted = db_admin.table("daily_tasks").insert(rows).execute().data
+    return inserted or []
 
 
 class StudentRequest(BaseModel):
@@ -302,22 +422,22 @@ def solve_mission(request: MissionSolveRequest, authorization: str = Header(None
 
         is_correct = "CORRECT" in status.upper() and "INCORRECT" not in status.upper()
 
-        # Increment total_xp in DB on a correct answer.
+        # Award quest XP through the ledger (same +50 from the user's view).
         # Wrapped in its own try/except so a DB hiccup never fails the grading response.
+        xp_gain = 0
         if is_correct:
             try:
-                cur = db_admin.table("user_profiles").select("total_xp").eq("user_id", user_id).execute()
-                if cur.data:
-                    new_xp = cur.data[0]["total_xp"] + 50
-                    db_admin.table("user_profiles").update({"total_xp": new_xp}).eq("user_id", user_id).execute()
-                    print(f"⭐ XP → {new_xp} for {user_id}")
+                res = try_award(user_id, "quest_cleared", {"puzzle": request.puzzle[:200]})
+                xp_gain = res["amount"]
+                print(f"⭐ +{xp_gain} XP (quest_cleared) for {user_id}")
             except Exception as xp_err:
-                print(f"⚠️ XP update failed (non-critical): {xp_err}")
+                print(f"⚠️ XP award failed (non-critical): {xp_err}")
 
         return {
             "status":     "success",
             "is_correct": is_correct,
-            "feedback":   feedback.strip()
+            "feedback":   feedback.strip(),
+            "xp_gain":    xp_gain
         }
     except Exception as e:
         print(f"⚠️ Grading Error: {e}")
@@ -430,6 +550,107 @@ def update_goal_status(body: GoalStatus, authorization: str = Header(None)):
     if not res.data:
         raise HTTPException(status_code=404, detail="Goal not found.")
     return {"status": "success", "goal": res.data[0]}
+
+    # --- DAILY TASKS + XP (the consistency loop) ---
+
+@app.get("/tasks/today")
+def tasks_today(authorization: str = Header(None)):
+    """Today's checkboxes, lazily materialized from the active roadmap."""
+    user_id = require_user(authorization)
+    tasks = ensure_today_tasks(user_id)
+    done = sum(1 for t in tasks if t["done"])
+    return {
+        "date": _ist_today().isoformat(),
+        "tasks": tasks,
+        "done": done,
+        "total": len(tasks),
+        "has_roadmap": len(tasks) > 0,
+    }
+
+
+class TaskToggle(BaseModel):
+    task_id: str
+    done: bool
+
+@app.post("/tasks/toggle")
+def toggle_task(body: TaskToggle, authorization: str = Header(None)):
+    """Check/uncheck a task. XP is awarded once per task (first completion),
+    capped server-side; unchecking never claws XP back."""
+    user_id = require_user(authorization)
+    rows = (db_admin.table("daily_tasks").select("*")
+            .eq("id", body.task_id).eq("user_id", user_id).execute()).data
+    if not rows:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    task = rows[0]
+
+    update = {"done": body.done}
+    xp = {"awarded": False, "amount": 0, "event": "task_done"}
+
+    # Award only on the first time a task is completed, and only under the daily cap.
+    if body.done and not task["xp_awarded"]:
+        xp = try_award(user_id, "task_done", {"task_id": body.task_id})
+        if xp["awarded"]:
+            update["xp_awarded"] = True
+
+    db_admin.table("daily_tasks").update(update).eq("id", body.task_id).execute()
+    return {"status": "success", "task_id": body.task_id, "done": body.done, "xp": xp}
+
+
+@app.post("/xp/login-bonus")
+def xp_login_bonus(authorization: str = Header(None)):
+    """Daily login XP (idempotent per day) + auto streak_7 bonus on multiples of 7."""
+    user_id = require_user(authorization)
+    result = try_award(user_id, "daily_login")
+
+    streak = compute_login_streak(user_id)
+    bonus = None
+    if streak > 0 and streak % 7 == 0 and count_events_today(user_id, "streak_7") == 0:
+        award_xp(user_id, "streak_7", XP_RULES["streak_7"]["amount"], {"streak": streak})
+        bonus = {"awarded": True, "amount": XP_RULES["streak_7"]["amount"], "streak": streak}
+
+    return {**result, "streak": streak, "streak_bonus": bonus}
+
+
+@app.get("/xp/summary")
+def xp_summary(authorization: str = Header(None)):
+    """Total XP (sum of ledger via mirror), today's earned XP, streak, and
+    remaining daily opportunities — the dopamine loop."""
+    user_id = require_user(authorization)
+
+    prof = db_admin.table("user_profiles").select("total_xp").eq("user_id", user_id).execute()
+    total_xp = (prof.data[0]["total_xp"] if prof.data else 0) or 0
+
+    start = _ist_today_start_iso()
+    today_rows = (db_admin.table("xp_events").select("amount,event_type")
+                  .eq("user_id", user_id).gte("created_at", start).execute()).data or []
+    today_earned = sum(r["amount"] for r in today_rows)
+
+    used = {}
+    for r in today_rows:
+        if r["amount"] > 0:
+            used[r["event_type"]] = used.get(r["event_type"], 0) + 1
+
+    opportunities, remaining_points = [], 0
+    def add_opp(event, label):
+        nonlocal remaining_points
+        rule = XP_RULES[event]
+        cap = rule["cap"] or 1
+        left = max(0, cap - used.get(event, 0))
+        if left > 0:
+            pts = rule["amount"] * left
+            remaining_points += pts
+            opportunities.append({"event": event, "remaining": left, "points": pts, "label": label(left, pts, rule["amount"])})
+
+    add_opp("daily_login", lambda n, p, a: f"Open the app today for +{a}")
+    add_opp("task_done",   lambda n, p, a: f"Check {n} more task{'s' if n > 1 else ''} for +{p}")
+
+    return {
+        "total_xp": total_xp,
+        "today_earned": today_earned,
+        "today_remaining_points": remaining_points,
+        "streak": compute_login_streak(user_id),
+        "opportunities": opportunities,
+    }
 
     # --- USERNAME AUTH ---
 
