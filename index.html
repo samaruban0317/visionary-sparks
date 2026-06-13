@@ -397,7 +397,7 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
       <div class="arch-grid" id="archGrid"></div>
       <div class="opt-row">
         <div class="sel"><label>Age band</label><select id="sAge"><option value="u15">Under 15</option><option value="u18">Under 18</option><option value="college" selected>College</option><option value="pro">Working pro</option></select></div>
-        <div class="sel"><label>Primary goal</label><select id="sGoal"><option>JEE</option><option>NEET</option><option>Python / DS</option><option>Placements</option><option>General</option></select></div>
+        <div class="sel"><label>Primary goal</label><select id="sGoal"><option value="JEE">JEE</option><option value="NEET">NEET</option><option value="python">Python / DS</option><option value="placements">Placements</option><option value="general">General</option><option value="undecided">Still deciding</option></select></div>
         <div class="sel"><label>Level</label><select id="sLevel"><option>Beginner</option><option>Intermediate</option></select></div>
         <div class="sel"><label>Your name</label><input id="sName" value="Cadet" style="background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:14px;padding:12px 15px;border-radius:12px;outline:none;width:100%"/></div>
       </div>
@@ -521,7 +521,7 @@ async function enforceSecurity() {
     S.name      = profile.display_name || currentUser.email.split('@')[0];
     S.archetype = profile.archetype    || 'Grinder';
     S.age       = profile.age_band     || 'college';
-    S.goal      = profile.current_goal || 'JEE';
+    S.goal      = normalizeGoal(profile.current_goal);
     S.level     = capitalize(profile.level) || 'Beginner';
     S.xp        = profile.total_xp     || 0;
 
@@ -558,6 +558,17 @@ async function enforceSecurity() {
 function capitalize(str) {
   return str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
 }
+
+/* Goal codes ↔ display labels. Onboarding + Spark dropdown both store codes;
+   normalizeGoal maps any legacy label (e.g. "Python / DS") back to its code. */
+const GOAL_LABELS = { JEE:"JEE", NEET:"NEET", python:"Python / DS", placements:"Placements", general:"General", undecided:"Still deciding" };
+function normalizeGoal(g) {
+  if (!g) return 'general';
+  if (GOAL_LABELS[g]) return g;                       // already a code
+  const byLabel = { "python / ds":"python", "placements":"placements", "general":"general", "jee":"JEE", "neet":"NEET" };
+  return byLabel[g.trim().toLowerCase()] || g;        // legacy label → code (fallback: keep as-is)
+}
+function goalLabel(g) { return GOAL_LABELS[g] || g; }
 
 async function signOut() {
   await supabaseClient.auth.signOut();
@@ -799,9 +810,9 @@ function syncProfile() {
   const AGE_LABELS = {u15:"Under 15", u18:"Under 18", college:"College", pro:"Working pro"};
   document.getElementById('avatarInit').textContent  = (S.name[0] || 'S').toUpperCase();
   document.getElementById('heroName').textContent    = S.name;
-  document.getElementById('statGoal').innerHTML      = `${S.goal} <span>· long road, started</span>`;
+  document.getElementById('statGoal').innerHTML      = `${goalLabel(S.goal)} <span>· long road, started</span>`;
   document.getElementById('pAge').textContent        = AGE_LABELS[S.age] || S.age;
-  document.getElementById('pGoal').textContent       = S.goal;
+  document.getElementById('pGoal').textContent       = goalLabel(S.goal);
   document.getElementById('pLevel').textContent      = S.level;
   document.getElementById('pArch').textContent       = S.archetype;
   document.getElementById('astraSub').textContent    = `Tuned for · ${AGE_LABELS[S.age] || S.age} · ${S.level}`;
