@@ -79,12 +79,14 @@ def _extract_json(text):
     return json.loads(text)
 
 
-def generate_roadmap_content(profile, title, detail, horizon):
-    """One Gemini call → a structured, personalized roadmap (dict for the jsonb column)."""
+def generate_roadmap_content(profile, title, detail, horizon, facts=None):
+    """One Gemini call → a structured, personalized roadmap (dict for the jsonb column).
+    `facts` are remembered facts about the student, used to tailor the plan."""
     age_band  = profile.get("age_band",  "college")
     level     = profile.get("level",     "beginner")
     archetype = profile.get("archetype", "Grinder")
     horizon_word = "long-term (spanning several months)" if horizon == "long" else "short-term (the next few weeks)"
+    mem_block = ("\nWhat you know about this student (tailor the plan to this):\n- " + "\n- ".join(facts)) if facts else ""
 
     prompt = (
         "You are a roadmap architect for a student learning app. "
@@ -92,6 +94,7 @@ def generate_roadmap_content(profile, title, detail, horizon):
         f"Extra context from the student: '{detail or 'none'}'. "
         f"Student profile — age_band: {age_band}, level: {level}, archetype: {archetype}. "
         "Archetype tone — Grinder: disciplined/exam-focused; Innovator: build-by-doing; Dreamer: big-picture long-game. "
+        f"{mem_block}\n"
         "Return STRICT JSON ONLY (no markdown, no commentary) with this exact shape:\n"
         '{"summary": "one motivating sentence", '
         '"milestones": [{"title": "short milestone name", "timeframe": "e.g. Weeks 1-2", '
@@ -466,7 +469,10 @@ def _latest_roadmap(goal_id):
 def _save_roadmap(user_id, goal, version):
     """Generate + persist a roadmap version for a goal. Returns the stored row."""
     profile = _profile_for(user_id)
-    content = generate_roadmap_content(profile, goal["title"], goal.get("detail"), goal["horizon"])
+    mem = (db_admin.table("user_memory").select("fact")
+           .eq("user_id", user_id).order("created_at", desc=True).limit(12).execute()).data or []
+    facts = [m["fact"] for m in mem]
+    content = generate_roadmap_content(profile, goal["title"], goal.get("detail"), goal["horizon"], facts=facts)
     review_at = (datetime.now(timezone.utc) + timedelta(days=7)).date().isoformat()
     row = {
         "user_id": user_id,
