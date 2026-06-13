@@ -47,6 +47,69 @@ def compute_age_band(age):
     return "pro"
 
 
+# ============================================================
+# ROADMAP GENERATION (uses a dedicated Gemini key: GEMINI_KEY_ROADMAP)
+# ============================================================
+# Falls back to GEMINI_API_KEY if the dedicated key isn't set (e.g. local dev).
+ROADMAP_KEY = os.getenv("GEMINI_KEY_ROADMAP") or os.getenv("GEMINI_API_KEY")
+roadmap_client = genai.Client(api_key=ROADMAP_KEY)
+
+
+def require_user(authorization):
+    """Validate the Supabase bearer token and return the user_id (str)."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing auth token")
+    token = authorization.replace("Bearer ", "")
+    user_response = db.auth.get_user(token)
+    if not user_response.user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return str(user_response.user.id)
+
+
+def _extract_json(text):
+    """Pull a JSON object out of an LLM response (tolerates ``` fences / prose)."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r'^```[a-zA-Z]*\n?', '', text)
+        text = re.sub(r'\n?```$', '', text).strip()
+    start, end = text.find('{'), text.rfind('}')
+    if start != -1 and end != -1:
+        text = text[start:end + 1]
+    return json.loads(text)
+
+
+def generate_roadmap_content(profile, title, detail, horizon):
+    """One Gemini call → a structured, personalized roadmap (dict for the jsonb column)."""
+    age_band  = profile.get("age_band",  "college")
+    level     = profile.get("level",     "beginner")
+    archetype = profile.get("archetype", "Grinder")
+    horizon_word = "long-term (spanning several months)" if horizon == "long" else "short-term (the next few weeks)"
+
+    prompt = (
+        "You are a roadmap architect for a student learning app. "
+        f"Design a {horizon_word} learning roadmap for this goal: '{title}'. "
+        f"Extra context from the student: '{detail or 'none'}'. "
+        f"Student profile — age_band: {age_band}, level: {level}, archetype: {archetype}. "
+        "Archetype tone — Grinder: disciplined/exam-focused; Innovator: build-by-doing; Dreamer: big-picture long-game. "
+        "Return STRICT JSON ONLY (no markdown, no commentary) with this exact shape:\n"
+        '{"summary": "one motivating sentence", '
+        '"milestones": [{"title": "short milestone name", "timeframe": "e.g. Weeks 1-2", '
+        '"focus": "what they build/learn here", "tasks": ["concrete task", "concrete task", "concrete task"], '
+        '"resources": ["a specific resource or two"]}]}\n'
+        "Make 4 to 6 milestones, ordered from start to goal. Keep every task concrete and doable. "
+        "Tune the depth and vocabulary to the student's level."
+    )
+    resp = roadmap_client.models.generate_content(
+        model="gemini-3.1-flash-lite", contents=prompt
+    )
+    return _extract_json(resp.text.strip())
+
+
+def _profile_for(user_id):
+    res = db_admin.table("user_profiles").select("*").eq("user_id", user_id).execute()
+    return res.data[0] if res.data else {}
+
+
 class StudentRequest(BaseModel):
     raw_prompt: str
     subject: str
@@ -259,7 +322,115 @@ def solve_mission(request: MissionSolveRequest, authorization: str = Header(None
     except Exception as e:
         print(f"⚠️ Grading Error: {e}")
         return {"status": "error", "message": "The grading system is offline. Wait 60 seconds and try again."}
-    
+
+    # --- GOALS + ROADMAPS ---
+
+class GoalCreate(BaseModel):
+    title: str
+    detail: str | None = None
+    horizon: str = "long"            # 'long' or 'short'
+    target_date: str | None = None   # ISO date string, optional
+
+
+def _latest_roadmap(goal_id):
+    rows = (db_admin.table("roadmaps").select("*")
+            .eq("goal_id", goal_id).order("version", desc=True).limit(1).execute()).data
+    return rows[0] if rows else None
+
+
+def _save_roadmap(user_id, goal, version):
+    """Generate + persist a roadmap version for a goal. Returns the stored row."""
+    profile = _profile_for(user_id)
+    content = generate_roadmap_content(profile, goal["title"], goal.get("detail"), goal["horizon"])
+    review_at = (datetime.now(timezone.utc) + timedelta(days=7)).date().isoformat()
+    row = {
+        "user_id": user_id,
+        "goal_id": goal["id"],
+        "horizon": goal["horizon"],
+        "content": content,
+        "version": version,
+        "next_review_at": review_at,
+    }
+    return db_admin.table("roadmaps").insert(row).execute().data[0]
+
+
+@app.post("/goals/create")
+def create_goal(body: GoalCreate, authorization: str = Header(None)):
+    """Declare a goal → store it → generate version 1 of its roadmap (one Gemini call)."""
+    user_id = require_user(authorization)
+    if not body.title.strip():
+        raise HTTPException(status_code=400, detail="Goal title is required.")
+    if body.horizon not in ("long", "short"):
+        raise HTTPException(status_code=400, detail="horizon must be 'long' or 'short'.")
+
+    goal_row = {
+        "user_id": user_id,
+        "horizon": body.horizon,
+        "title": body.title.strip(),
+        "detail": (body.detail or "").strip() or None,
+        "status": "active",
+    }
+    if body.target_date:
+        goal_row["target_date"] = body.target_date
+    goal = db_admin.table("goals").insert(goal_row).execute().data[0]
+
+    try:
+        roadmap = _save_roadmap(user_id, goal, version=1)
+    except Exception as e:
+        print(f"⚠️ Roadmap generation failed: {e}")
+        # Goal is saved; the user can retry generation without re-creating the goal.
+        return {"goal": goal, "roadmap": None,
+                "warning": "Goal saved, but the roadmap couldn't be generated. Try regenerating."}
+    return {"goal": goal, "roadmap": roadmap}
+
+
+@app.get("/goals")
+def list_goals(authorization: str = Header(None)):
+    """All of the user's goals, each with its latest roadmap version."""
+    user_id = require_user(authorization)
+    goals = (db_admin.table("goals").select("*")
+             .eq("user_id", user_id).order("created_at", desc=True).execute()).data or []
+    return {"goals": [{**g, "roadmap": _latest_roadmap(g["id"])} for g in goals]}
+
+
+class RoadmapRegen(BaseModel):
+    goal_id: str
+
+@app.post("/roadmap/regenerate")
+def regenerate_roadmap(body: RoadmapRegen, authorization: str = Header(None)):
+    """Generate a fresh, version-incremented roadmap for an existing goal."""
+    user_id = require_user(authorization)
+    g = (db_admin.table("goals").select("*")
+         .eq("id", body.goal_id).eq("user_id", user_id).execute()).data
+    if not g:
+        raise HTTPException(status_code=404, detail="Goal not found.")
+    goal = g[0]
+    last = _latest_roadmap(goal["id"])
+    next_version = (last["version"] + 1) if last else 1
+    try:
+        roadmap = _save_roadmap(user_id, goal, version=next_version)
+    except Exception as e:
+        print(f"⚠️ Roadmap regeneration failed: {e}")
+        raise HTTPException(status_code=502, detail="Roadmap generation failed. Try again in a moment.")
+    return {"roadmap": roadmap}
+
+
+class GoalStatus(BaseModel):
+    goal_id: str
+    status: str   # 'active' | 'paused' | 'done'
+
+@app.post("/goals/status")
+def update_goal_status(body: GoalStatus, authorization: str = Header(None)):
+    """Pause, resume, or complete a goal."""
+    user_id = require_user(authorization)
+    if body.status not in ("active", "paused", "done"):
+        raise HTTPException(status_code=400, detail="Invalid status.")
+    res = (db_admin.table("goals").update({"status": body.status})
+           .eq("id", body.goal_id).eq("user_id", user_id).execute())
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Goal not found.")
+    return {"status": "success", "goal": res.data[0]}
+
     # --- USERNAME AUTH ---
 
 @app.get("/auth/check-username")

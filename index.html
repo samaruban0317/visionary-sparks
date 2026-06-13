@@ -206,6 +206,27 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
 .node .mtitle{font-family:'Bricolage Grotesque';font-weight:600;font-size:16.5px}
 .node .mtitle span{font-family:'JetBrains Mono';font-size:11px;color:var(--faint);margin-left:8px}
 .node .mdesc{color:var(--muted);font-size:13.5px;margin-top:5px;line-height:1.55}
+.node ul{margin:8px 0 2px 2px;list-style:none}
+.node li{padding-left:18px;position:relative;margin:4px 0;color:var(--muted);font-size:13px}
+.node li::before{content:"›";position:absolute;left:2px;color:var(--cyan)}
+.node .res{font-size:12px;color:var(--faint);margin-top:7px}
+/* goal composer + cards */
+.gc-label{display:block;font-family:'JetBrains Mono';font-size:10px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:7px}
+.gc-input,.gc-select{width:100%;background:var(--ink2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+.gc-input:focus,.gc-select:focus{border-color:var(--violet)}
+.goal-card{padding:24px;margin-bottom:20px}
+.goal-card .ghead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.goal-card .gtitle{font-family:'Bricolage Grotesque';font-weight:800;font-size:19px;flex:1;min-width:160px}
+.goal-badge{font-family:'JetBrains Mono';font-size:10px;letter-spacing:1px;padding:4px 10px;border-radius:20px;border:1px solid var(--line);color:var(--muted);text-transform:uppercase}
+.goal-badge.long{color:#c3b6ff;border-color:rgba(124,92,255,.4)}
+.goal-badge.short{color:var(--cyan);border-color:rgba(34,211,238,.4)}
+.goal-badge.done{color:var(--lime);border-color:rgba(134,255,107,.4)}
+.goal-badge.paused{color:var(--amber);border-color:rgba(245,181,68,.4)}
+.goal-summary{color:var(--muted);font-size:13.5px;margin:10px 0 14px}
+.goal-summary b{color:var(--lime);font-family:'JetBrains Mono';font-size:12px}
+.goal-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.goal-actions .btn{padding:10px 15px;font-size:13px}
+.goals-empty{padding:40px;text-align:center;color:var(--muted)}
 
 /* ---------- Spark / profile ---------- */
 .arch-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
@@ -381,12 +402,33 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
     <section class="view" data-view="paths">
       <div class="eyebrow">Roadmaps</div>
       <h2 class="title">Paths</h2>
-      <div class="sub">A good plan is half done. Every goal becomes a lit timeline you can actually walk.</div>
-      <div class="path-tabs" id="pathTabs">
-        <button class="on" data-p="python">Python · Upskill</button>
-        <button data-p="jee">JEE · Academic</button>
+      <div class="sub">Declare a goal and Astra builds you a stored, walkable roadmap. Your plan lives here — revisit it, and regenerate as you grow.</div>
+
+      <div class="panel glow" id="goalComposer" style="padding:22px;margin-top:22px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div style="flex:2;min-width:220px;">
+            <label class="gc-label">Your goal</label>
+            <input id="goalTitle" placeholder="e.g. Crack JEE Advanced · Become a backend developer" class="gc-input">
+          </div>
+          <div class="sel" style="min-width:150px;"><label>Horizon</label>
+            <select id="goalHorizon" class="gc-select"><option value="long">Long road</option><option value="short">Short sprint</option></select>
+          </div>
+          <div style="min-width:150px;">
+            <label class="gc-label">Target <span style="opacity:.5">(optional)</span></label>
+            <input id="goalTarget" type="date" class="gc-input">
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label class="gc-label">Detail <span style="opacity:.5">(optional — helps Astra tailor it)</span></label>
+          <input id="goalDetail" placeholder="Where are you now? Constraints, deadlines, focus areas?" class="gc-input">
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:16px;">
+          <button class="btn btn-p" id="goalGenBtn" onclick="createGoal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18V6m0 0l4 3 8-6 4 3v12l-4-3-8 6-4-3z"/></svg> Generate my roadmap</button>
+          <span id="goalGenHint" style="font-size:12.5px;color:var(--muted);"></span>
+        </div>
       </div>
-      <div class="roadmap" id="roadmap"></div>
+
+      <div id="goalsList" style="margin-top:24px;"></div>
     </section>
 
     <!-- SPARK / PROFILE -->
@@ -771,6 +813,7 @@ function showView(v) {
   document.querySelectorAll('.view').forEach(s => s.classList.toggle('on', s.dataset.view === v));
   nav.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   document.querySelector('.main').scrollTo({top:0, behavior:'smooth'});
+  if (v === 'paths') loadGoals();
 }
 nav.addEventListener('click', e => { const b = e.target.closest('button'); if (b) showView(b.dataset.v); });
 document.querySelectorAll('[data-go]').forEach(b => b.onclick = () => showView(b.dataset.go));
@@ -954,37 +997,150 @@ async function solveMission() {
   }
 }
 
-/* ── Paths ───────────────────────────────────────────────────────────────── */
-const PATHS = {
-  python:[
-    ["done","Month 1 · Fundamentals",    "Variables, data types, lists & dicts, loops, if/else. Build a GPA calculator + a text adventure."],
-    ["done","Month 2 · Modular thinking","Functions (DRY), modules, file I/O, try/except. Build a Task Manager that saves to a file."],
-    ["now", "Month 3 · Specialise",      "Pick a lane: NumPy + Pandas (Data), Flask/Django (Web), or BeautifulSoup (Automation)."],
-    ["",    "Month 4 · Portfolio",        "Git/GitHub, basic OOP, one capstone (live weather app / stock tracker). Ship it publicly."]
-  ],
-  jee:[
-    ["done","Foundation lock",   "Core Class-11 concepts mapped. Weak spots flagged from your effort data."],
-    ["now", "Concept clarity",   "3 academic days/week on Physics + Maths. Astra explains, you re-derive, not memorise."],
-    ["",    "Problem reps",      "Daily mixed sets. Mistakes become flashcards, surfaced again on revision Mondays."],
-    ["",    "Mock & refine",     "Timed mocks, error log, taper. Calm head &gt; cram."]
-  ]
-};
-function renderPath(p) {
-  const r = document.getElementById('roadmap');
-  r.innerHTML = '';
-  PATHS[p].forEach(n => {
-    const el = document.createElement('div');
-    el.className = 'node ' + n[0];
-    el.innerHTML = `<div class="mtitle">${n[1]} <span>${n[0]==='done'?'✓ done':n[0]==='now'?'• in progress':''}</span></div><div class="mdesc">${n[2]}</div>`;
-    r.appendChild(el);
-  });
+/* ── Paths · Goals + AI roadmaps ─────────────────────────────────────────── */
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
-document.getElementById('pathTabs').addEventListener('click', e => {
-  const b = e.target.closest('button');
-  if (!b) return;
-  document.querySelectorAll('#pathTabs button').forEach(x => x.classList.toggle('on', x === b));
-  renderPath(b.dataset.p);
-});
+
+function renderMilestones(content) {
+  if (!content || !Array.isArray(content.milestones)) return '<div class="mdesc">No milestones in this roadmap.</div>';
+  return '<div class="roadmap">' + content.milestones.map(m => {
+    const tasks = Array.isArray(m.tasks) && m.tasks.length
+      ? '<ul>' + m.tasks.map(t => `<li>${esc(t)}</li>`).join('') + '</ul>' : '';
+    const res = Array.isArray(m.resources) && m.resources.length
+      ? `<div class="res">📚 ${m.resources.map(esc).join(' · ')}</div>` : '';
+    return `<div class="node">
+        <div class="mtitle">${esc(m.title)} <span>${esc(m.timeframe || '')}</span></div>
+        ${m.focus ? `<div class="mdesc">${esc(m.focus)}</div>` : ''}
+        ${tasks}${res}
+      </div>`;
+  }).join('') + '</div>';
+}
+
+function renderGoals(goals) {
+  const wrap = document.getElementById('goalsList');
+  if (!goals || !goals.length) {
+    wrap.innerHTML = `<div class="panel goals-empty">No goals yet. Declare your first one above and Astra will draft the roadmap. 🧭</div>`;
+    return;
+  }
+  wrap.innerHTML = goals.map(g => {
+    const rm = g.roadmap;
+    const hLabel = g.horizon === 'short' ? 'Short sprint' : 'Long road';
+    const statusBadge = g.status && g.status !== 'active'
+      ? `<span class="goal-badge ${esc(g.status)}">${esc(g.status)}</span>` : '';
+    const body = rm
+      ? `<div class="goal-summary"><b>Plan v${esc(rm.version)}</b> · ${esc((rm.content && rm.content.summary) || '')}</div>${renderMilestones(rm.content)}`
+      : `<div class="goal-summary" style="color:var(--rose)">Roadmap not generated yet — hit Regenerate.</div>`;
+    return `<div class="panel goal-card" data-goal="${esc(g.id)}">
+        <div class="ghead">
+          <div class="gtitle">${esc(g.title)}</div>
+          <span class="goal-badge ${g.horizon === 'short' ? 'short' : 'long'}">${hLabel}</span>
+          ${statusBadge}
+        </div>
+        ${g.detail ? `<div class="mdesc">${esc(g.detail)}</div>` : ''}
+        ${body}
+        <div class="goal-actions">
+          <button class="btn btn-g" onclick="regenerateRoadmap('${esc(g.id)}', this)">↻ Regenerate</button>
+          ${g.status !== 'done' ? `<button class="btn btn-g" onclick="setGoalStatus('${esc(g.id)}','done')">✓ Mark done</button>` : ''}
+          ${g.status === 'paused'
+            ? `<button class="btn btn-g" onclick="setGoalStatus('${esc(g.id)}','active')">Resume</button>`
+            : (g.status !== 'done' ? `<button class="btn btn-g" onclick="setGoalStatus('${esc(g.id)}','paused')">Pause</button>` : '')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+let goalsLoaded = false;
+async function loadGoals() {
+  const wrap = document.getElementById('goalsList');
+  if (!goalsLoaded) wrap.innerHTML = `<div class="panel goals-empty">Loading your paths…</div>`;
+  try {
+    const res = await fetch('/goals', { headers: await getAuthHeader() });
+    if (!res.ok) throw new Error('load failed');
+    const data = await res.json();
+    renderGoals(data.goals);
+    goalsLoaded = true;
+  } catch (e) {
+    wrap.innerHTML = `<div class="panel goals-empty" style="color:var(--rose)">Couldn't load your paths. Refresh to retry.</div>`;
+  }
+}
+
+async function createGoal() {
+  const title = document.getElementById('goalTitle').value.trim();
+  const detail = document.getElementById('goalDetail').value.trim();
+  const horizon = document.getElementById('goalHorizon').value;
+  const target = document.getElementById('goalTarget').value;
+  const btn = document.getElementById('goalGenBtn');
+  const hint = document.getElementById('goalGenHint');
+
+  if (!title) { hint.style.color = 'var(--rose)'; hint.textContent = 'Give your goal a name first.'; return; }
+
+  btn.disabled = true;
+  const label = btn.querySelector('svg') ? btn.innerHTML : btn.textContent;
+  btn.textContent = 'Astra is drafting your roadmap…';
+  hint.style.color = 'var(--muted)';
+  hint.textContent = 'One Gemini call — this can take a few seconds.';
+  try {
+    const res = await fetch('/goals/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ title, detail: detail || null, horizon, target_date: target || null })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Could not create goal.');
+    }
+    const data = await res.json();
+    document.getElementById('goalTitle').value = '';
+    document.getElementById('goalDetail').value = '';
+    document.getElementById('goalTarget').value = '';
+    hint.textContent = data.warning ? data.warning : 'Roadmap ready ✦';
+    await loadGoals();
+    document.querySelector(`[data-goal="${data.goal.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (e) {
+    hint.style.color = 'var(--rose)';
+    hint.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = label;
+  }
+}
+
+async function regenerateRoadmap(goalId, btn) {
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Regenerating…';
+  try {
+    const res = await fetch('/roadmap/regenerate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ goal_id: goalId })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Regeneration failed.');
+    }
+    await loadGoals();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = old;
+    alert(e.message);
+  }
+}
+
+async function setGoalStatus(goalId, status) {
+  try {
+    const res = await fetch('/goals/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ goal_id: goalId, status })
+    });
+    if (!res.ok) throw new Error('Update failed');
+    await loadGoals();
+  } catch (e) {
+    alert(e.message);
+  }
+}
 
 /* ── Spark / profile controls ────────────────────────────────────────────── */
 function buildArch() {
