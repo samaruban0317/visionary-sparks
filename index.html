@@ -431,15 +431,27 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
       <input id="ob-name" placeholder="What should Astra call you?" style="width:100%;background:var(--ink2);border:1px solid var(--line);border-radius:12px;padding:13px 15px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:.15s;" onfocus="this.style.borderColor='var(--violet)'" onblur="this.style.borderColor='var(--line)'">
     </div>
 
+    <div style="display:flex;gap:14px;margin-bottom:18px;">
+      <div style="flex:1;">
+        <label style="display:block;font-family:'JetBrains Mono';font-size:10px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:7px;">Username</label>
+        <input id="ob-username" placeholder="a-z 0-9 _" autocomplete="off" style="width:100%;background:var(--ink2);border:1px solid var(--line);border-radius:12px;padding:13px 15px;color:var(--text);font-family:inherit;font-size:14px;outline:none;">
+      </div>
+      <div style="width:110px;">
+        <label style="display:block;font-family:'JetBrains Mono';font-size:10px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:7px;">Age</label>
+        <input id="ob-age" type="number" min="8" max="60" placeholder="19" style="width:100%;background:var(--ink2);border:1px solid var(--line);border-radius:12px;padding:13px 15px;color:var(--text);font-family:inherit;font-size:14px;outline:none;">
+      </div>
+    </div>
+
     <div style="margin-bottom:18px;">
       <label style="display:block;font-family:'JetBrains Mono';font-size:10px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:7px;">Primary goal</label>
       <div style="position:relative;">
         <select id="ob-goal" style="appearance:none;width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);font-family:inherit;font-size:14px;padding:12px 40px 12px 15px;border-radius:12px;cursor:pointer;outline:none;">
           <option value="JEE">JEE</option>
           <option value="NEET">NEET</option>
-          <option value="Python / DS">Python / DS</option>
-          <option value="Placements">Placements</option>
-          <option value="General">General</option>
+          <option value="python">Python / DS</option>
+          <option value="placements">Placements</option>
+          <option value="general" selected>General</option>
+          <option value="undecided">Still deciding</option>
         </select>
         <span style="position:absolute;right:15px;top:50%;transform:translateY(-50%);color:var(--faint);pointer-events:none;">▾</span>
       </div>
@@ -557,6 +569,11 @@ let obArchetype = 'Grinder';
 
 function showOnboarding() {
   document.getElementById('onboarding-overlay').style.display = 'flex';
+  // Carry the username chosen at signup (email-confirmation path lands here)
+  try {
+    const pending = localStorage.getItem('pending_username');
+    if (pending) document.getElementById('ob-username').value = pending;
+  } catch (e) {}
   const grid = document.getElementById('ob-arch-grid');
   grid.innerHTML = '';
   ARCHETYPES.forEach(a => {
@@ -575,21 +592,47 @@ function showOnboarding() {
 }
 
 async function submitOnboarding() {
-  const name = document.getElementById('ob-name').value.trim();
+  const name  = document.getElementById('ob-name').value.trim();
+  const uname = document.getElementById('ob-username').value.trim().toLowerCase();
+  const age   = parseInt(document.getElementById('ob-age').value, 10);
+  const goal  = document.getElementById('ob-goal').value;
+  const btn   = document.getElementById('ob-submit');
+
   if (!name) { document.getElementById('ob-name').focus(); return; }
-  const goal = document.getElementById('ob-goal').value;
-  const btn  = document.getElementById('ob-submit');
+  if (!/^[a-z0-9_]{3,20}$/.test(uname)) {
+    btn.textContent = 'Username: 3–20 chars, a-z 0-9 _';
+    return;
+  }
+  if (!age || age < 8 || age > 60) {
+    btn.textContent = 'Enter a valid age (8–60)';
+    return;
+  }
+
   btn.disabled = true;
   btn.textContent = 'Saving…';
   try {
-    const res = await fetch('/update_profile', {
+    const res = await fetch('/onboard', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
-      body: JSON.stringify({ display_name: name, age_band: 'college', current_goal: goal, level: 'beginner', archetype: obArchetype })
+      body: JSON.stringify({
+        display_name: name,
+        username:     uname,
+        age:          age,
+        current_goal: goal,
+        archetype:    obArchetype,
+        level:        'beginner'
+      })
     });
-    if (!res.ok) throw new Error('Save failed');
-    S.name = name; S.goal = goal; S.archetype = obArchetype; S.age = 'college'; S.level = 'Beginner';
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Save failed');
+    }
+    const out = await res.json();
+    try { localStorage.removeItem('pending_username'); } catch (e) {}
+    S.name = name; S.goal = goal; S.archetype = obArchetype;
+    S.age  = out.age_band || 'college'; S.level = 'Beginner';
     document.getElementById('onboarding-overlay').style.display = 'none';
+    document.getElementById('completeBanner').style.display = 'none';
     document.getElementById('sAge').value   = S.age;
     document.getElementById('sGoal').value  = S.goal;
     document.getElementById('sLevel').value = S.level;
@@ -602,7 +645,7 @@ async function submitOnboarding() {
     window.history.replaceState({}, '', '/');
   } catch (e) {
     console.error(e);
-    btn.textContent = 'Error — try again';
+    btn.textContent = e.message || 'Error — try again';
   } finally {
     btn.disabled = false;
     if (btn.textContent === 'Saving…') btn.textContent = 'Begin My Journey →';

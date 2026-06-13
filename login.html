@@ -185,12 +185,16 @@
                     const { data, error } = await supabaseClient.auth.signUp({ email: em, password: pw });
                     if (error) throw error;
 
+                    // Stash the chosen username so it survives the email-confirmation path
+                    // (if confirmation is ON, onboarding happens later on index.html).
+                    try { localStorage.setItem('pending_username', u); } catch (e) {}
+
                     // Ensure we have a session (auto-confirm on) before onboarding
                     let session = data.session;
                     if (!session) {
                         const si = await supabaseClient.auth.signInWithPassword({ email: em, password: pw });
                         if (si.error) {
-                            alert("Account created. Please confirm your email, then sign in.");
+                            alert("Account created! Please check your email to confirm your address, then sign in with your username.");
                             location.reload();
                             return;
                         }
@@ -280,6 +284,7 @@
                     const err = await r.json().catch(() => ({}));
                     throw new Error(err.detail || "Could not save profile.");
                 }
+                try { localStorage.removeItem('pending_username'); } catch (e) {}
                 window.location.href = "index.html";
             } catch (error) {
                 alert("Error: " + (error.message || error));
