@@ -29,6 +29,24 @@ db: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 db_admin: Client = create_client(SUPABASE_URL, SERVICE_KEY) if SERVICE_KEY else db
 
+USERNAME_RE = re.compile(r'^[a-z0-9_]{3,20}$')
+
+def compute_age_band(age):
+    """Map a real age to the existing cache-compatible age_band buckets.
+    Must NEVER change once data exists — these values seed the shared cache key."""
+    try:
+        a = int(age)
+    except (TypeError, ValueError):
+        return "college"
+    if a <= 14:
+        return "u15"
+    if a <= 18:
+        return "u18"
+    if a <= 22:
+        return "college"
+    return "pro"
+
+
 class StudentRequest(BaseModel):
     raw_prompt: str
     subject: str
@@ -242,6 +260,96 @@ def solve_mission(request: MissionSolveRequest, authorization: str = Header(None
         print(f"⚠️ Grading Error: {e}")
         return {"status": "error", "message": "The grading system is offline. Wait 60 seconds and try again."}
     
+    # --- USERNAME AUTH ---
+
+@app.get("/auth/check-username")
+def check_username(u: str = ""):
+    """Validate format + uniqueness for signup. Returns availability."""
+    uname = (u or "").strip().lower()
+    if not USERNAME_RE.match(uname):
+        return {
+            "available": False,
+            "valid": False,
+            "reason": "Username must be 3-20 chars: lowercase letters, numbers, underscore."
+        }
+    existing = db_admin.table("user_profiles").select("user_id").eq("username", uname).execute()
+    return {"available": not bool(existing.data), "valid": True}
+
+
+class ResolveRequest(BaseModel):
+    login: str
+
+@app.post("/auth/resolve")
+def resolve_login(request: ResolveRequest):
+    """Given a username OR email, return the email to sign in with.
+    If the input already contains '@', it's treated as an email and returned as-is."""
+    raw = (request.login or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Login is required.")
+    if "@" in raw:
+        return {"email": raw}
+
+    uname = raw.lower()
+    prof = db_admin.table("user_profiles").select("user_id").eq("username", uname).execute()
+    if not prof.data:
+        raise HTTPException(status_code=404, detail="No account found for that username.")
+
+    user_id = prof.data[0]["user_id"]
+    try:
+        user = db_admin.auth.admin.get_user_by_id(user_id)
+        email = user.user.email
+    except Exception as e:
+        print(f"⚠️ resolve_login admin lookup failed: {e}")
+        raise HTTPException(status_code=500, detail="Could not resolve account.")
+    if not email:
+        raise HTTPException(status_code=404, detail="No email on file for that username.")
+    return {"email": email}
+
+
+class OnboardRequest(BaseModel):
+    display_name: str
+    username: str
+    age: int
+    current_goal: str = "general"
+    archetype: str = "Grinder"
+    level: str = "beginner"
+
+@app.post("/onboard")
+def onboard(request: OnboardRequest, authorization: str = Header(None)):
+    """Create/complete a profile after signup. Computes age_band server-side
+    from real age so the Astra cache key stays consistent."""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing auth token")
+    token = authorization.replace("Bearer ", "")
+    user_response = db.auth.get_user(token)
+    if not user_response.user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user_id = str(user_response.user.id)
+
+    uname = (request.username or "").strip().lower()
+    if not USERNAME_RE.match(uname):
+        raise HTTPException(status_code=400, detail="Invalid username format.")
+    if not (8 <= request.age <= 60):
+        raise HTTPException(status_code=400, detail="Age must be between 8 and 60.")
+
+    # Reject if the username is taken by someone else
+    taken = db_admin.table("user_profiles").select("user_id").eq("username", uname).execute()
+    if taken.data and str(taken.data[0]["user_id"]) != user_id:
+        raise HTTPException(status_code=409, detail="Username already taken.")
+
+    data = {
+        "user_id": user_id,
+        "display_name": request.display_name.strip() or "Cadet",
+        "username": uname,
+        "age": request.age,
+        "age_band": compute_age_band(request.age),
+        "current_goal": request.current_goal,
+        "archetype": request.archetype,
+        "level": request.level,
+    }
+    db_admin.table("user_profiles").upsert(data).execute()
+    return {"status": "success", "age_band": data["age_band"]}
+
     # --- SERVE THE FRONTEND UI ---
 @app.get("/")
 def serve_home():
@@ -264,6 +372,8 @@ class ProfileUpdate(BaseModel):
     archetype: str
     age_band: str = "college"
     level: str = "beginner"
+    age: int | None = None
+    username: str | None = None
 
 @app.get("/profile")
 def get_profile(authorization: str = Header(None)):
@@ -333,15 +443,33 @@ def update_profile(profile: ProfileUpdate, authorization: str = Header(None)):
     if not user_response.user:
         raise HTTPException(status_code=401, detail="Invalid token")
     
+    user_id = str(user_response.user.id)
     data = {
-        "user_id": user_response.user.id,
+        "user_id": user_id,
         "display_name": profile.display_name,
         "current_goal": profile.current_goal,
         "archetype": profile.archetype,
         "age_band": profile.age_band,
         "level": profile.level
     }
-    
+
+    # If a real age is supplied, recompute age_band server-side (cache compatibility)
+    if profile.age is not None:
+        if not (8 <= profile.age <= 60):
+            raise HTTPException(status_code=400, detail="Age must be between 8 and 60.")
+        data["age"] = profile.age
+        data["age_band"] = compute_age_band(profile.age)
+
+    # If a username is supplied, validate format + uniqueness
+    if profile.username is not None and profile.username.strip():
+        uname = profile.username.strip().lower()
+        if not USERNAME_RE.match(uname):
+            raise HTTPException(status_code=400, detail="Invalid username format.")
+        taken = db_admin.table("user_profiles").select("user_id").eq("username", uname).execute()
+        if taken.data and str(taken.data[0]["user_id"]) != user_id:
+            raise HTTPException(status_code=409, detail="Username already taken.")
+        data["username"] = uname
+
     # Use db_admin to bypass RLS and save the profile
     result = db_admin.table("user_profiles").upsert(data).execute()
     return {"status": "success"}

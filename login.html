@@ -6,97 +6,284 @@
     <title>Visionary Sparks - Cadet Access</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = { darkMode: 'class', theme: { extend: { colors: { background: '#0A0A0B', surface: 'rgba(255, 255, 255, 0.03)', border: 'rgba(255, 255, 255, 0.08)', brand: '#7C3AED', brandHover: '#6D28D9' } } } }
+        tailwind.config = { darkMode: 'class', theme: { extend: { colors: { background: '#0A0A0B', surface: 'rgba(255, 255, 255, 0.03)', border: 'rgba(255, 255, 255, 0.08)', brand: '#7C3AED', brandHover: '#6D28D9', accent: '#06B6D4' } } } }
     </script>
     <style>
-        body { background-color: #0A0A0B; background-image: radial-gradient(at 0% 0%, rgba(124, 58, 237, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%); background-attachment: fixed; }
-        input:focus { outline: none; box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.5); }
+        body { background-color: #0A0A0B; background-image: radial-gradient(at 0% 0%, rgba(124, 58, 237, 0.15) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.1) 0px, transparent 50%); background-attachment: fixed; }
+        input:focus, select:focus { outline: none; box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.5); }
+        .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.05em; }
+        .arch-card.selected { border-color: #7C3AED; box-shadow: 0 0 18px rgba(124,58,237,0.45); background: rgba(124,58,237,0.12); }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center text-gray-200 font-sans antialiased">
+<body class="min-h-screen flex items-center justify-center text-gray-200 font-sans antialiased p-4">
     <div class="w-full max-w-md p-8 rounded-2xl bg-surface backdrop-blur-xl border border-border shadow-2xl relative overflow-hidden">
         <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand to-transparent opacity-50"></div>
+
         <div class="text-center mb-8">
             <div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-brand/20 text-brand mb-4 border border-brand/30 shadow-[0_0_15px_rgba(124,58,237,0.3)]">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
             </div>
             <h2 class="text-2xl font-bold text-white tracking-wide">Visionary Sparks</h2>
-            <p class="text-sm text-gray-400 mt-2">Sign in to begin your mission</p>
+            <p id="subtitle" class="text-sm text-gray-400 mt-2">Sign in to begin your mission</p>
         </div>
-        <div class="space-y-4">
-            <div><input type="email" id="email" placeholder="Email" class="w-full px-4 py-3 rounded-lg bg-black/40 border border-border text-white placeholder-gray-500 focus:border-brand transition-all duration-300"></div>
-            <div><input type="password" id="password" placeholder="Password" class="w-full px-4 py-3 rounded-lg bg-black/40 border border-border text-white placeholder-gray-500 focus:border-brand transition-all duration-300"></div>
+
+        <!-- ============ AUTH STEP ============ -->
+        <div id="authStep" class="space-y-4">
+            <!-- Login-only field -->
+            <div id="loginIdWrap">
+                <input type="text" id="loginId" autocomplete="username" placeholder="Username or email" class="w-full px-4 py-3 rounded-lg bg-black/40 border border-border text-white placeholder-gray-500 focus:border-brand transition-all duration-300">
+            </div>
+
+            <!-- Signup-only fields -->
+            <div id="emailWrap" class="hidden">
+                <input type="email" id="email" autocomplete="email" placeholder="Email" class="w-full px-4 py-3 rounded-lg bg-black/40 border border-border text-white placeholder-gray-500 focus:border-brand transition-all duration-300">
+            </div>
+            <div id="usernameWrap" class="hidden">
+                <input type="text" id="username" autocomplete="off" placeholder="Username (a-z, 0-9, _)" class="w-full px-4 py-3 rounded-lg bg-black/40 border border-border text-white placeholder-gray-500 focus:border-brand transition-all duration-300">
+                <p id="usernameHint" class="text-xs mt-1 mono text-gray-500 h-4">3–20 chars, lowercase</p>
+            </div>
+
+            <div>
+                <input type="password" id="password" autocomplete="current-password" placeholder="Password" class="w-full px-4 py-3 rounded-lg bg-black/40 border border-border text-white placeholder-gray-500 focus:border-brand transition-all duration-300">
+            </div>
+
             <button id="authBtn" class="w-full py-3 px-4 bg-brand hover:bg-brandHover text-white font-semibold rounded-lg shadow-[0_0_20px_rgba(124,58,237,0.4)] transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center gap-2 mt-2">
                 <span id="btnText">Continue</span>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
             </button>
+
+            <div class="text-center text-sm text-gray-400 pt-2">
+                <a href="#" id="toggleModeBtn" class="text-brand hover:text-brandHover transition-colors">New here? Create an account</a>
+            </div>
         </div>
-        <div class="mt-6 text-center text-sm text-gray-400">
-            <a href="#" id="toggleModeBtn" class="text-brand hover:text-brandHover transition-colors">New here? Create an account</a>
+
+        <!-- ============ ONBOARDING STEP ============ -->
+        <div id="onboardStep" class="hidden space-y-4">
+            <div>
+                <label class="text-xs mono text-gray-400">WHAT SHOULD ASTRA CALL YOU?</label>
+                <input type="text" id="ob_name" placeholder="Your name" class="mt-1 w-full px-4 py-3 rounded-lg bg-black/40 border border-border text-white placeholder-gray-500 focus:border-brand">
+            </div>
+            <div>
+                <label class="text-xs mono text-gray-400">YOUR AGE</label>
+                <input type="number" id="ob_age" min="8" max="60" placeholder="e.g. 19" class="mt-1 w-full px-4 py-3 rounded-lg bg-black/40 border border-border text-white placeholder-gray-500 focus:border-brand">
+            </div>
+            <div>
+                <label class="text-xs mono text-gray-400">PRIMARY GOAL</label>
+                <select id="ob_goal" class="mt-1 w-full px-4 py-3 rounded-lg bg-black/40 border border-border text-white focus:border-brand">
+                    <option value="JEE">JEE</option>
+                    <option value="NEET">NEET</option>
+                    <option value="python">Python / Data Science</option>
+                    <option value="placements">Placements</option>
+                    <option value="general" selected>General</option>
+                    <option value="undecided">Still deciding</option>
+                </select>
+                <p id="ob_goal_note" class="hidden text-xs mt-1 text-accent">No stress. Pathfinder will help you figure it out.</p>
+            </div>
+            <div>
+                <label class="text-xs mono text-gray-400">YOUR ARCHETYPE</label>
+                <div class="grid grid-cols-3 gap-2 mt-1">
+                    <div class="arch-card cursor-pointer rounded-lg border border-border p-3 text-center transition-all" data-arch="Grinder">
+                        <div class="text-lg">⚔️</div><div class="text-xs font-semibold mt-1">Grinder</div>
+                    </div>
+                    <div class="arch-card cursor-pointer rounded-lg border border-border p-3 text-center transition-all" data-arch="Innovator">
+                        <div class="text-lg">🛠️</div><div class="text-xs font-semibold mt-1">Innovator</div>
+                    </div>
+                    <div class="arch-card cursor-pointer rounded-lg border border-border p-3 text-center transition-all" data-arch="Dreamer">
+                        <div class="text-lg">🌌</div><div class="text-xs font-semibold mt-1">Dreamer</div>
+                    </div>
+                </div>
+            </div>
+            <button id="onboardBtn" class="w-full py-3 px-4 bg-brand hover:bg-brandHover text-white font-semibold rounded-lg shadow-[0_0_20px_rgba(124,58,237,0.4)] transition-all transform hover:scale-[1.02] mt-2">
+                <span id="onboardBtnText">Launch My Spark</span>
+            </button>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <script>
-        console.log("✅ Login Script successfully loaded!");
-        
-        // 🚨 REPLACE THESE TWO STRINGS WITH YOUR ACTUAL SUPABASE URL AND ANON KEY 🚨
-        const supabaseUrl = 'https://gpjozyrsvxvfaowgfrob.supabase.co'; 
+        const supabaseUrl = 'https://gpjozyrsvxvfaowgfrob.supabase.co';
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdwam96eXJzdnh2ZmFvd2dmcm9iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0Mzc4MTcsImV4cCI6MjA5NjAxMzgxN30.CWlQLph_ARfC_LV99NrhaY1C2z5KfSA_LH_fX7_AeQc';
-        
-        // 🚨 FIXED: Renamed to "supabaseClient" to prevent the syntax crash!
         const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+        const API = ''; // same origin (served by FastAPI)
 
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
+        // --- elements ---
+        const loginIdWrap = document.getElementById('loginIdWrap');
+        const emailWrap   = document.getElementById('emailWrap');
+        const usernameWrap= document.getElementById('usernameWrap');
+        const loginId = document.getElementById('loginId');
+        const email = document.getElementById('email');
+        const username = document.getElementById('username');
+        const usernameHint = document.getElementById('usernameHint');
+        const password = document.getElementById('password');
         const authBtn = document.getElementById('authBtn');
         const btnText = document.getElementById('btnText');
         const toggleModeBtn = document.getElementById('toggleModeBtn');
-        
-        let isSignUp = false;
+        const subtitle = document.getElementById('subtitle');
+        const authStep = document.getElementById('authStep');
+        const onboardStep = document.getElementById('onboardStep');
 
-        // Toggle Login / Signup UI
+        let isSignUp = false;
+        let usernameOk = false;
+        let chosenArchetype = 'Grinder';
+
+        // --- toggle login/signup ---
         toggleModeBtn.addEventListener('click', (e) => {
             e.preventDefault();
             isSignUp = !isSignUp;
+            loginIdWrap.classList.toggle('hidden', isSignUp);
+            emailWrap.classList.toggle('hidden', !isSignUp);
+            usernameWrap.classList.toggle('hidden', !isSignUp);
             btnText.innerText = isSignUp ? "Create Account" : "Continue";
             toggleModeBtn.innerText = isSignUp ? "Already have an account? Sign in" : "New here? Create an account";
+            subtitle.innerText = isSignUp ? "Create your cadet profile" : "Sign in to begin your mission";
         });
 
-        // Handle Button Click
-        authBtn.addEventListener('click', async () => {
-            console.log("🔘 Button clicked! Mode:", isSignUp ? "Sign Up" : "Sign In");
-            const email = emailInput.value;
-            const password = passwordInput.value;
-
-            if (!email || !password) {
-                alert("Please enter both email and password.");
+        // --- live username availability check (debounced) ---
+        let unameTimer = null;
+        username.addEventListener('input', () => {
+            usernameOk = false;
+            const u = username.value.trim().toLowerCase();
+            usernameHint.className = "text-xs mt-1 mono text-gray-500 h-4";
+            usernameHint.innerText = "checking...";
+            clearTimeout(unameTimer);
+            if (!/^[a-z0-9_]{3,20}$/.test(u)) {
+                usernameHint.className = "text-xs mt-1 mono text-red-400 h-4";
+                usernameHint.innerText = "3–20 chars: a-z 0-9 _";
                 return;
             }
+            unameTimer = setTimeout(async () => {
+                try {
+                    const r = await fetch(`${API}/auth/check-username?u=${encodeURIComponent(u)}`);
+                    const j = await r.json();
+                    if (j.available) {
+                        usernameOk = true;
+                        usernameHint.className = "text-xs mt-1 mono text-emerald-400 h-4";
+                        usernameHint.innerText = "✓ available";
+                    } else {
+                        usernameHint.className = "text-xs mt-1 mono text-red-400 h-4";
+                        usernameHint.innerText = j.reason || "✗ taken";
+                    }
+                } catch (e) {
+                    usernameHint.className = "text-xs mt-1 mono text-gray-500 h-4";
+                    usernameHint.innerText = "could not check";
+                }
+            }, 400);
+        });
 
+        // --- main auth button ---
+        authBtn.addEventListener('click', async () => {
+            const pw = password.value;
+            if (!pw) { alert("Please enter a password."); return; }
             btnText.innerText = "Processing...";
-
             try {
                 if (isSignUp) {
-                    console.log("⏳ Attempting to create account in Supabase...");
-                    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                    const em = email.value.trim();
+                    const u = username.value.trim().toLowerCase();
+                    if (!em) throw new Error("Email is required.");
+                    if (!usernameOk) throw new Error("Pick an available username first.");
+
+                    const { data, error } = await supabaseClient.auth.signUp({ email: em, password: pw });
                     if (error) throw error;
-                    console.log("🎉 Sign Up Success:", data);
-                    alert("Account created! Logging you in...");
-                    window.location.href = "index.html"; 
+
+                    // Ensure we have a session (auto-confirm on) before onboarding
+                    let session = data.session;
+                    if (!session) {
+                        const si = await supabaseClient.auth.signInWithPassword({ email: em, password: pw });
+                        if (si.error) {
+                            alert("Account created. Please confirm your email, then sign in.");
+                            location.reload();
+                            return;
+                        }
+                        session = si.data.session;
+                    }
+                    pendingUsername = u;
+                    goToOnboarding();
                 } else {
-                    console.log("⏳ Attempting to verify credentials in Supabase...");
-                    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                    // Login: resolve username -> email if needed
+                    let loginEmail = loginId.value.trim();
+                    if (!loginEmail) throw new Error("Enter your username or email.");
+                    if (!loginEmail.includes("@")) {
+                        const r = await fetch(`${API}/auth/resolve`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ login: loginEmail })
+                        });
+                        if (!r.ok) {
+                            const err = await r.json().catch(() => ({}));
+                            throw new Error(err.detail || "Account not found.");
+                        }
+                        loginEmail = (await r.json()).email;
+                    }
+                    const { error } = await supabaseClient.auth.signInWithPassword({ email: loginEmail, password: pw });
                     if (error) throw error;
-                    console.log("🎉 Sign In Success:", data);
-                    window.location.href = "index.html"; 
+                    window.location.href = "index.html";
                 }
             } catch (error) {
-                console.error("❌ Auth Error:", error.message);
-                alert("Error: " + error.message);
+                alert("Error: " + (error.message || error));
             } finally {
                 btnText.innerText = isSignUp ? "Create Account" : "Continue";
+            }
+        });
+
+        // --- onboarding ---
+        let pendingUsername = '';
+        function goToOnboarding() {
+            authStep.classList.add('hidden');
+            onboardStep.classList.remove('hidden');
+            toggleModeBtn.parentElement.classList.add('hidden');
+            subtitle.innerText = "Set up your Spark";
+        }
+
+        document.getElementById('ob_goal').addEventListener('change', (e) => {
+            document.getElementById('ob_goal_note').classList.toggle('hidden', e.target.value !== 'undecided');
+        });
+
+        document.querySelectorAll('.arch-card').forEach(card => {
+            card.addEventListener('click', () => {
+                document.querySelectorAll('.arch-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                chosenArchetype = card.dataset.arch;
+            });
+        });
+        // default-select Grinder
+        document.querySelector('.arch-card[data-arch="Grinder"]').classList.add('selected');
+
+        document.getElementById('onboardBtn').addEventListener('click', async () => {
+            const name = document.getElementById('ob_name').value.trim();
+            const age = parseInt(document.getElementById('ob_age').value, 10);
+            const goal = document.getElementById('ob_goal').value;
+            const btn = document.getElementById('onboardBtnText');
+
+            if (!name) { alert("Tell Astra your name."); return; }
+            if (!age || age < 8 || age > 60) { alert("Enter a valid age (8–60)."); return; }
+
+            btn.innerText = "Launching...";
+            try {
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (!session) throw new Error("Session expired. Please sign in again.");
+                const r = await fetch(`${API}/onboard`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + session.access_token
+                    },
+                    body: JSON.stringify({
+                        display_name: name,
+                        username: pendingUsername,
+                        age: age,
+                        current_goal: goal,
+                        archetype: chosenArchetype,
+                        level: "beginner"
+                    })
+                });
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.detail || "Could not save profile.");
+                }
+                window.location.href = "index.html";
+            } catch (error) {
+                alert("Error: " + (error.message || error));
+                btn.innerText = "Launch My Spark";
             }
         });
     </script>
