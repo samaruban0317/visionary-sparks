@@ -725,6 +725,28 @@ def xp_summary(authorization: str = Header(None)):
         "opportunities": opportunities,
     }
 
+
+@app.get("/stats/overview")
+def stats_overview(authorization: str = Header(None)):
+    """Real per-user lifetime counters for the dashboard — no fabricated demo
+    numbers. Questions asked to Astra, tasks completed, reflections logged."""
+    user_id = require_user(authorization)
+
+    convos = (db_admin.table("conversations").select("id")
+              .eq("user_id", user_id).execute()).data or []
+    convo_ids = [c["id"] for c in convos]
+    questions = 0
+    if convo_ids:
+        questions = (db_admin.table("messages").select("id", count="exact")
+                     .in_("conversation_id", convo_ids).eq("role", "user").execute()).count or 0
+
+    tasks_done = (db_admin.table("daily_tasks").select("id", count="exact")
+                  .eq("user_id", user_id).eq("done", True).execute()).count or 0
+    reflections = (db_admin.table("xp_events").select("id", count="exact")
+                   .eq("user_id", user_id).eq("event_type", "reflection").execute()).count or 0
+
+    return {"questions_asked": questions, "tasks_done": tasks_done, "reflections": reflections}
+
     # --- CONVERSATIONS + MESSAGES (chat history) ---
 
 def _own_conversation(user_id, conversation_id):

@@ -336,9 +336,9 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
           <div class="panel ring-card">
             <div class="ring">
               <svg width="148" height="148"><circle cx="74" cy="74" r="62" stroke="#1e1e30" stroke-width="12" fill="none"/><circle id="ringArc" cx="74" cy="74" r="62" stroke="url(#gg)" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="389" stroke-dashoffset="389"/><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs></svg>
-              <div class="num">72<small>EFFORT</small></div>
+              <div class="num"><span id="ringPct">0%</span><small>TODAY</small></div>
             </div>
-            <p>This week you showed up <b>5 of 6 planned days</b>. We track effort, not marks.</p>
+            <p id="ringNote">Loading today's progress… We track effort, not marks.</p>
           </div>
         </div>
 
@@ -364,6 +364,17 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
           </div>
         </div>
 
+        <!-- THIS WEEK · current roadmap focus (the bigger picture behind today's tasks) -->
+        <div class="panel" id="weekFocus" style="padding:22px;margin-top:18px;display:none">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <div class="eyebrow" style="margin:0">This Week · Roadmap Focus</div>
+            <span class="chip" style="padding:5px 11px" id="weekTimeframe"></span>
+          </div>
+          <div style="font-family:'Bricolage Grotesque';font-weight:800;font-size:18px" id="weekTitle"></div>
+          <div style="color:var(--muted);font-size:13.5px;margin-top:4px" id="weekFocusLine"></div>
+          <div id="weekTasks" style="margin-top:14px;display:flex;flex-direction:column;gap:8px"></div>
+        </div>
+
         <!-- DAILY REFLECTION (journal · +30, max 2/day) -->
         <div class="panel" style="padding:22px;margin-top:18px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -381,9 +392,9 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
         <div class="rhythm" id="rhythm"></div>
 
         <div class="stat-row">
-          <div class="panel stat"><div class="k">Goal locked</div><div class="v" id="statGoal">JEE <span>· long road, started</span></div></div>
-          <div class="panel stat"><div class="k">Concepts cleared</div><div class="v">38 <span>/ this month</span></div></div>
-          <div class="panel stat"><div class="k">Credits saved by cache</div><div class="v" style="color:var(--lime)">81% <span>this week</span></div></div>
+          <div class="panel stat"><div class="k">Goal locked</div><div class="v" id="statGoal">JEE <span>· your main goal</span></div></div>
+          <div class="panel stat"><div class="k">Questions asked</div><div class="v"><span id="statQuestions">—</span> <span>to Astra</span></div></div>
+          <div class="panel stat"><div class="k">Tasks completed</div><div class="v" style="color:var(--lime)"><span id="statTasks">—</span> <span>all time</span></div></div>
         </div>
 
         <div class="note panel"><span style="font-size:18px">🛡️</span><div><b>Effort dashboard, not a fear machine.</b> No red "you failed 30/100" here. We surface your consistency, your comebacks, and the weeks you survived — because that's what actually builds a future.</div></div>
@@ -573,7 +584,7 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
 
     <div style="margin-bottom:28px;">
       <label style="display:block;font-family:'JetBrains Mono';font-size:10px;letter-spacing:1.5px;color:var(--faint);text-transform:uppercase;margin-bottom:11px;">Your archetype</label>
-      <div id="ob-arch-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;"></div>
+      <div id="ob-arch-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px;"></div>
     </div>
 
     <button id="ob-submit" onclick="submitOnboarding()" class="btn btn-p" style="width:100%;justify-content:center;font-size:15px;padding:15px 20px;">Begin My Journey →</button>
@@ -933,7 +944,7 @@ function syncProfile() {
   const AGE_LABELS = {u15:"Under 15", u18:"Under 18", college:"College", pro:"Working pro"};
   document.getElementById('avatarInit').textContent  = (S.name[0] || 'S').toUpperCase();
   document.getElementById('heroName').textContent    = S.name;
-  document.getElementById('statGoal').innerHTML      = `${goalLabel(S.goal)} <span>· long road, started</span>`;
+  document.getElementById('statGoal').innerHTML      = `${goalLabel(S.goal)} <span>· your main goal</span>`;
   document.getElementById('pAge').textContent        = AGE_LABELS[S.age] || S.age;
   document.getElementById('pGoal').textContent       = goalLabel(S.goal);
   document.getElementById('pLevel').textContent      = S.level;
@@ -1397,6 +1408,42 @@ async function refreshXP() {
   } catch (e) {}
 }
 
+async function loadStats() {
+  try {
+    const res = await fetch('/stats/overview', { headers: await getAuthHeader() });
+    if (!res.ok) return;
+    const s = await res.json();
+    document.getElementById('statQuestions').textContent = (s.questions_asked || 0).toLocaleString();
+    document.getElementById('statTasks').textContent = (s.tasks_done || 0).toLocaleString();
+  } catch (e) {}
+}
+
+async function loadWeekFocus() {
+  const panel = document.getElementById('weekFocus');
+  try {
+    const res = await fetch('/goals', { headers: await getAuthHeader() });
+    if (!res.ok) { panel.style.display = 'none'; return; }
+    const goals = (await res.json()).goals || [];
+    // Most recent active goal that has a generated roadmap (fallback: any).
+    const goal = goals.find(g => g.status === 'active' && g.roadmap && g.roadmap.content)
+              || goals.find(g => g.roadmap && g.roadmap.content);
+    const content = goal && goal.roadmap && goal.roadmap.content;
+    const milestones = content && Array.isArray(content.milestones) ? content.milestones : [];
+    if (!milestones.length) { panel.style.display = 'none'; return; }
+
+    const m = milestones[0];   // current focus phase (milestone-level progress isn't tracked yet)
+    document.getElementById('weekTitle').textContent = m.title || 'Current focus';
+    document.getElementById('weekFocusLine').textContent = m.focus || content.summary || '';
+    document.getElementById('weekTimeframe').textContent = m.timeframe || '';
+    const tasks = Array.isArray(m.tasks) ? m.tasks : [];
+    document.getElementById('weekTasks').innerHTML = tasks.map(t =>
+      `<div style="display:flex;gap:9px;align-items:flex-start;font-size:13.5px;color:var(--text)">
+         <span style="color:var(--violet);margin-top:1px">◆</span><span>${esc(t)}</span>
+       </div>`).join('');
+    panel.style.display = '';
+  } catch (e) { panel.style.display = 'none'; }
+}
+
 async function loadTodayTasks() {
   const wrap = document.getElementById('todayTasks');
   try {
@@ -1411,6 +1458,15 @@ async function loadTodayTasks() {
 function renderTasks(data) {
   const wrap = document.getElementById('todayTasks');
   document.getElementById('tasksProgress').textContent = `${data.done}/${data.total}`;
+
+  // Drive the effort ring from real today's-task completion (no demo numbers).
+  const pct = data.total > 0 ? Math.round(100 * data.done / data.total) : 0;
+  document.getElementById('ringPct').textContent = pct + '%';
+  document.getElementById('ringArc').style.strokeDashoffset = 389 * (1 - pct / 100);
+  document.getElementById('ringNote').textContent = data.total > 0
+    ? `${data.done} of ${data.total} tasks done today. We track effort, not marks.`
+    : `No tasks yet today — build a roadmap to start. We track effort, not marks.`;
+
   if (!data.has_roadmap) {
     wrap.innerHTML = `<div class="tasks-empty" style="text-align:center;padding:24px 12px">
       <div style="font-family:'Bricolage Grotesque';font-weight:800;font-size:16px;color:var(--text);margin-bottom:6px">No roadmap yet 🧭</div>
@@ -1521,6 +1577,8 @@ async function initConsistency() {
   refreshXP();
   loadTodayTasks();
   loadReflections();
+  loadStats();
+  loadWeekFocus();
   startHeartbeat();
 }
 
@@ -1551,9 +1609,9 @@ document.getElementById('sName').onchange  = e => { S.name  = e.target.value || 
 function init() {
   buildRhythm();
   renderSuggest();
+  // Enable the ring's animation; renderTasks() fills it from real task data.
   setTimeout(() => {
-    document.getElementById('ringArc').style.transition    = 'stroke-dashoffset 1.3s cubic-bezier(.2,.7,.2,1)';
-    document.getElementById('ringArc').style.strokeDashoffset = 389 * (1 - 0.72);
+    document.getElementById('ringArc').style.transition = 'stroke-dashoffset 1.3s cubic-bezier(.2,.7,.2,1)';
   }, 300);
 }
 init();
