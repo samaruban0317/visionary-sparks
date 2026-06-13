@@ -1176,6 +1176,117 @@ def career_chat_public(request: CareerChatRequest):
 
     return StreamingResponse(stream_response(), media_type="text/event-stream")
 
+
+# ============================================================
+# PATHFINDER — goal-discovery chat → stored roadmap
+# For students who are "still deciding": a short back-and-forth that names a
+# goal, then reuses the same goal+roadmap machinery as /goals/create.
+# Uses the dedicated roadmap Gemini key (separate quota from Astra).
+# ============================================================
+
+PATHFINDER_SYSTEM = (
+    "You are Pathfinder, Visionary Sparks' goal-discovery guide for students. "
+    "Through a warm, brief back-and-forth, help the student figure out what to chase. "
+    "Ask ONE question at a time — at most two sentences per turn, no lectures. "
+    "You need to learn five things: (1) their dream or ambition, (2) the timeframe they're "
+    "thinking in, (3) their current level / starting point, (4) how many hours a week they can "
+    "give, (5) any constraints (board exams, money, device, language). "
+    "When — and ONLY when — you have all five, reply with the literal token [READY] on its own "
+    "line, then a JSON object on the next line: "
+    '{"ambition": "...", "timeframe": "...", "current_level": "...", "weekly_hours": "...", '
+    '"constraints": "...", "suggested_primary_goal": "one of: JEE, NEET, python, placements, general", '
+    '"goal_title": "a short, motivating goal title to save"}. '
+    "Never emit [READY] until you genuinely have all five."
+)
+
+class PathfinderChatRequest(BaseModel):
+    messages: List[ChatMessage] = []
+
+@app.post("/pathfinder/chat")
+def pathfinder_chat(body: PathfinderChatRequest, authorization: str = Header(None)):
+    """One discovery turn. Returns the next question, or — once enough is known —
+    ready=True with a structured spec the user can confirm into a roadmap."""
+    user_id = require_user(authorization)
+    profile = _profile_for(user_id)
+    name = profile.get("display_name") or "there"
+
+    # First turn: a warm opener with no model call (saves quota).
+    if not body.messages:
+        return {"ready": False,
+                "message": f"Hey {name} — let's figure out what's actually worth chasing. "
+                           "In one line: what would you love to be able to do, or become?"}
+
+    convo = PATHFINDER_SYSTEM + f"\nThe student's name is {name}.\n\n"
+    for m in body.messages[-16:]:
+        who = "Student" if m.role == "user" else "Pathfinder"
+        convo += f"{who}: {m.content}\n"
+    convo += "Pathfinder:"
+
+    try:
+        resp = roadmap_client.models.generate_content(
+            model="gemini-3.1-flash-lite", contents=convo
+        )
+        text = resp.text.strip()
+    except Exception as e:
+        print(f"⚠️ Pathfinder chat error: {e}")
+        raise HTTPException(status_code=502, detail="Pathfinder is catching its breath. Try again in a moment.")
+
+    if "[READY]" in text:
+        pre, after = text.split("[READY]", 1)
+        try:
+            spec = _extract_json(after)
+        except Exception:
+            spec = None
+        if spec:
+            return {"ready": True, "spec": spec,
+                    "message": pre.strip() or "Here's what I understood — ready to build your roadmap?"}
+        # JSON didn't parse — fall back to a normal turn so the chat keeps going.
+        return {"ready": False, "message": pre.strip() or text}
+
+    return {"ready": False, "message": text}
+
+
+class PathfinderGenerate(BaseModel):
+    spec: dict
+
+@app.post("/pathfinder/generate")
+def pathfinder_generate(body: PathfinderGenerate, authorization: str = Header(None)):
+    """Confirm a discovered spec → create the goal + generate version 1 of its
+    roadmap (one Gemini call), reusing the shared goal/roadmap machinery."""
+    user_id = require_user(authorization)
+    spec = body.spec or {}
+
+    title = (str(spec.get("goal_title") or spec.get("ambition") or "My goal")).strip()[:120]
+    detail_bits = []
+    for key, label in (("timeframe", "Timeframe"), ("current_level", "Starting level"),
+                       ("weekly_hours", "Weekly hours"), ("constraints", "Constraints")):
+        v = str(spec.get(key) or "").strip()
+        if v:
+            detail_bits.append(f"{label}: {v}")
+    detail = " · ".join(detail_bits) or None
+
+    goal = db_admin.table("goals").insert({
+        "user_id": user_id, "horizon": "long", "title": title, "detail": detail, "status": "active",
+    }).execute().data[0]
+
+    # Adopt the suggested primary goal into the profile if it's a known code —
+    # keeps the Astra cache segment aligned with what the student just discovered.
+    sg = str(spec.get("suggested_primary_goal") or "").strip().lower()
+    if sg in {"jee", "neet", "python", "placements", "general"}:
+        try:
+            db_admin.table("user_profiles").update({"current_goal": sg}).eq("user_id", user_id).execute()
+        except Exception as e:
+            print(f"⚠️ Pathfinder set current_goal failed: {e}")
+
+    try:
+        roadmap = _save_roadmap(user_id, goal, version=1)
+    except Exception as e:
+        print(f"⚠️ Pathfinder roadmap generation failed: {e}")
+        return {"goal": goal, "roadmap": None,
+                "warning": "Goal saved, but the roadmap couldn't be generated. Open Paths and hit Regenerate."}
+    return {"goal": goal, "roadmap": roadmap}
+
+
 @app.post("/update_profile")
 def update_profile(profile: ProfileUpdate, authorization: str = Header(None)):
     if not authorization:
