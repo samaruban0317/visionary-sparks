@@ -119,11 +119,16 @@ IST = timezone(timedelta(hours=5, minutes=30))   # day boundary = midnight IST
 # event_type -> (amount, daily cap). cap None = no daily limit.
 XP_RULES = {
     "daily_login":   {"amount": 10,  "cap": 1},
+    "active_30min":  {"amount": 15,  "cap": 1},
     "task_done":     {"amount": 20,  "cap": 5},
+    "reflection":    {"amount": 30,  "cap": 2},
     "quest_cleared": {"amount": 50,  "cap": None},
     "streak_7":      {"amount": 100, "cap": None},
 }
 DAILY_TASK_COUNT = 3   # tasks surfaced from the roadmap each day
+
+HEARTBEAT_PINGS_NEEDED = 6      # 6 pings * ~5 min = ~30 min active
+HEARTBEAT_MIN_GAP_SEC  = 240    # a ping only counts if >4 min since the last one
 
 
 def _ist_today():
@@ -611,6 +616,66 @@ def xp_login_bonus(authorization: str = Header(None)):
     return {**result, "streak": streak, "streak_bonus": bonus}
 
 
+@app.post("/xp/heartbeat")
+def xp_heartbeat(authorization: str = Header(None)):
+    """Frontend pings ~every 5 min while the tab is visible. After 6 spaced
+    pings in a day (~30 min) we award active_30min once."""
+    user_id = require_user(authorization)
+
+    if count_events_today(user_id, "active_30min") >= 1:
+        return {"awarded": False, "event": "active_30min", "pings": HEARTBEAT_PINGS_NEEDED, "capped": True}
+
+    start = _ist_today_start_iso()
+    pings = (db_admin.table("xp_events").select("created_at")
+             .eq("user_id", user_id).eq("event_type", "heartbeat_ping")
+             .gte("created_at", start).order("created_at", desc=True).execute())
+    data = pings.data or []
+    count = len(data)
+    now = datetime.now(timezone.utc)
+
+    # Anti-gaming: ignore pings that arrive faster than the minimum gap.
+    if data and (now - _parse_ts(data[0]["created_at"])).total_seconds() < HEARTBEAT_MIN_GAP_SEC:
+        return {"awarded": False, "event": "active_30min", "pings": count, "throttled": True}
+
+    db_admin.table("xp_events").insert(
+        {"user_id": user_id, "event_type": "heartbeat_ping", "amount": 0, "meta": {}}
+    ).execute()
+    count += 1
+
+    if count >= HEARTBEAT_PINGS_NEEDED:
+        res = try_award(user_id, "active_30min")
+        return {**res, "pings": count}
+    return {"awarded": False, "event": "active_30min", "pings": count}
+
+
+class ReflectionRequest(BaseModel):
+    text: str
+
+@app.post("/reflect")
+def add_reflection(body: ReflectionRequest, authorization: str = Header(None)):
+    """Journal entry → +30 XP (max 2/day). The text is kept on the ledger event."""
+    user_id = require_user(authorization)
+    text = (body.text or "").strip()
+    if len(text) < 10:
+        raise HTTPException(status_code=400, detail="Write at least a sentence (10+ characters).")
+    text = text[:2000]
+    res = try_award(user_id, "reflection", {"text": text})
+    return {**res, "saved": True}
+
+
+@app.get("/reflections")
+def list_reflections(authorization: str = Header(None)):
+    """Recent journal entries (from the XP ledger), newest first."""
+    user_id = require_user(authorization)
+    rows = (db_admin.table("xp_events").select("created_at,meta")
+            .eq("user_id", user_id).eq("event_type", "reflection")
+            .order("created_at", desc=True).limit(20).execute()).data or []
+    return {"reflections": [
+        {"created_at": r["created_at"], "text": (r.get("meta") or {}).get("text", "")}
+        for r in rows
+    ]}
+
+
 @app.get("/xp/summary")
 def xp_summary(authorization: str = Header(None)):
     """Total XP (sum of ledger via mirror), today's earned XP, streak, and
@@ -641,8 +706,10 @@ def xp_summary(authorization: str = Header(None)):
             remaining_points += pts
             opportunities.append({"event": event, "remaining": left, "points": pts, "label": label(left, pts, rule["amount"])})
 
-    add_opp("daily_login", lambda n, p, a: f"Open the app today for +{a}")
-    add_opp("task_done",   lambda n, p, a: f"Check {n} more task{'s' if n > 1 else ''} for +{p}")
+    add_opp("daily_login",  lambda n, p, a: f"Open the app today for +{a}")
+    add_opp("active_30min", lambda n, p, a: f"Stay active 30 min for +{a}")
+    add_opp("task_done",    lambda n, p, a: f"Check {n} more task{'s' if n > 1 else ''} for +{p}")
+    add_opp("reflection",   lambda n, p, a: f"Log {n} reflection{'s' if n > 1 else ''} for +{p}")
 
     return {
         "total_xp": total_xp,

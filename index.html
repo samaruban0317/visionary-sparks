@@ -363,6 +363,20 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
           </div>
         </div>
 
+        <!-- DAILY REFLECTION (journal · +30, max 2/day) -->
+        <div class="panel" style="padding:22px;margin-top:18px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div class="eyebrow" style="margin:0">Daily Reflection <span style="color:var(--faint)">· +30 XP</span></div>
+            <span class="chip" style="padding:5px 11px"><span id="reflectCount">0</span>/2 today</span>
+          </div>
+          <textarea id="reflectInput" rows="2" placeholder="What did you learn or struggle with today? A sentence is enough." style="width:100%;background:var(--ink2);border:1px solid var(--line);border-radius:12px;padding:12px 14px;color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:vertical"></textarea>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:12px">
+            <button class="btn btn-p" id="reflectBtn" onclick="submitReflection()" style="padding:11px 18px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg> Log reflection</button>
+            <span id="reflectHint" style="font-size:12.5px;color:var(--muted)"></span>
+          </div>
+          <div id="reflectList" style="margin-top:16px"></div>
+        </div>
+
         <div class="rhythm" id="rhythm"></div>
 
         <div class="stat-row">
@@ -1257,6 +1271,70 @@ async function toggleTask(id, done, el) {
   }
 }
 
+async function submitReflection() {
+  const ta = document.getElementById('reflectInput');
+  const btn = document.getElementById('reflectBtn');
+  const hint = document.getElementById('reflectHint');
+  const text = ta.value.trim();
+  if (text.length < 10) { hint.style.color = 'var(--rose)'; hint.textContent = 'A full sentence, please (10+ chars).'; return; }
+
+  btn.disabled = true;
+  hint.style.color = 'var(--muted)';
+  hint.textContent = 'Saving…';
+  try {
+    const res = await fetch('/reflect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ text })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Could not save.');
+    }
+    const data = await res.json();
+    ta.value = '';
+    if (data.awarded) { xpToast(data.amount, 'reflection'); hint.textContent = 'Logged ✦'; }
+    else { hint.style.color = 'var(--amber)'; hint.textContent = 'Saved — daily XP cap reached (2/2).'; }
+    loadReflections();
+    refreshXP();
+  } catch (e) {
+    hint.style.color = 'var(--rose)';
+    hint.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadReflections() {
+  try {
+    const res = await fetch('/reflections', { headers: await getAuthHeader() });
+    if (!res.ok) return;
+    const data = await res.json();
+    const list = document.getElementById('reflectList');
+    const today = new Date().toDateString();
+    const todayCount = data.reflections.filter(r => new Date(r.created_at).toDateString() === today).length;
+    document.getElementById('reflectCount').textContent = todayCount;
+    list.innerHTML = data.reflections.slice(0, 5).map(r => {
+      const d = new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return `<div style="border-top:1px solid var(--line);padding:10px 0;font-size:13.5px;color:var(--muted)"><span style="font-family:'JetBrains Mono';font-size:11px;color:var(--faint);margin-right:8px">${d}</span>${esc(r.text)}</div>`;
+    }).join('');
+  } catch (e) {}
+}
+
+let heartbeatTimer = null;
+function startHeartbeat() {
+  if (heartbeatTimer) return;
+  heartbeatTimer = setInterval(async () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const res = await fetch('/xp/heartbeat', { method: 'POST', headers: await getAuthHeader() });
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d.awarded) { xpToast(d.amount, '30 min active'); refreshXP(); }
+    } catch (e) {}
+  }, 5 * 60 * 1000);   // every 5 minutes
+}
+
 async function initConsistency() {
   try {
     const res = await fetch('/xp/login-bonus', { method: 'POST', headers: await getAuthHeader() });
@@ -1269,6 +1347,8 @@ async function initConsistency() {
   } catch (e) {}
   refreshXP();
   loadTodayTasks();
+  loadReflections();
+  startHeartbeat();
 }
 
 /* ── Spark / profile controls ────────────────────────────────────────────── */
