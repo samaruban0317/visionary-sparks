@@ -861,6 +861,86 @@ def extract_memory(body: MemoryExtract, authorization: str = Header(None)):
             added.append(f)
     return {"added": len(added), "facts": added}
 
+    # --- ASTRA CHAT (personalized, memory-aware, NON-cached) ---
+
+class AstraChatRequest(BaseModel):
+    message: str
+    conversation_id: str | None = None
+
+@app.post("/astra/chat")
+def astra_chat(body: AstraChatRequest, authorization: str = Header(None)):
+    """Conversational Astra that injects the user's profile, remembered facts,
+    and recent message history. Always fresh — deliberately does NOT read or
+    write the shared mega_cache (that cache is for /bouncer single questions)."""
+    user_id = require_user(authorization)
+    msg = (body.message or "").strip()
+    if not msg:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+    msg = msg[:4000]
+
+    profile   = _profile_for(user_id)
+    age_band  = profile.get("age_band", "college")
+    goal      = profile.get("current_goal", "general")
+    level     = profile.get("level", "beginner")
+    archetype = profile.get("archetype", "Grinder")
+    name      = profile.get("display_name") or "there"
+
+    # Resolve / create the conversation
+    if body.conversation_id:
+        convo = _own_conversation(user_id, body.conversation_id)
+    else:
+        convo = db_admin.table("conversations").insert({"user_id": user_id}).execute().data[0]
+    conversation_id = convo["id"]
+
+    # Recent history (before we add the new turn) + remembered facts
+    history = (db_admin.table("messages").select("role,content")
+               .eq("conversation_id", conversation_id)
+               .order("created_at", desc=True).limit(8).execute()).data or []
+    history = list(reversed(history))
+    mem = (db_admin.table("user_memory").select("fact")
+           .eq("user_id", user_id).order("created_at", desc=True).limit(12).execute()).data or []
+    facts = [m["fact"] for m in mem]
+
+    # Persist the user's message + auto-title the conversation
+    db_admin.table("messages").insert(
+        {"conversation_id": conversation_id, "role": "user", "content": msg}
+    ).execute()
+    if convo.get("title") in (None, "", "New chat"):
+        db_admin.table("conversations").update(
+            {"title": msg.replace("\n", " ")[:48] or "New chat"}
+        ).eq("id", conversation_id).execute()
+
+    mem_block = ("\nWhat you remember about this student:\n- " + "\n- ".join(facts)) if facts else ""
+    hist_block = "".join(
+        f"{'Student' if h['role'] == 'user' else 'Astra'}: {h['content']}\n" for h in history
+    )
+
+    prompt = (
+        f"You are Astra, a personalized AI tutor and study companion for {name}. "
+        f"Student profile: age_band={age_band}, goal={goal}, level={level}, archetype={archetype}. "
+        "Archetype tone — Grinder: sharp, disciplined, exam-focused; "
+        "Innovator: curious, builder examples; Dreamer: big-picture, long-game framing. "
+        "Never introduce yourself or say 'I am Astra'. Use what you remember to make the reply feel "
+        "continuous and personal, but don't list the facts back robotically. "
+        "Be warm and concrete, tuned to their level. Keep replies under 220 words; use bold and bullets where useful."
+        f"{mem_block}\n\n"
+        f"Recent conversation:\n{hist_block}"
+        f"Student: {msg}\nAstra:"
+    )
+
+    try:
+        resp = ai_client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
+        answer = resp.text.strip()
+    except Exception as e:
+        print(f"⚠️ Astra chat error: {e}")
+        return {"route": "ERROR", "conversation_id": conversation_id,
+                "message": "Astra is helping a lot of students right now. Take a breath and try again in 60 seconds."}
+
+    db_admin.table("messages").insert(
+        {"conversation_id": conversation_id, "role": "assistant", "content": answer[:8000]}
+    ).execute()
+    return {"route": "ASTRA_MEMORY", "conversation_id": conversation_id, "message": answer}
+
     # --- USERNAME AUTH ---
 
 @app.get("/auth/check-username")

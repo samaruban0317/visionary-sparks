@@ -978,18 +978,19 @@ async function askAstra() {
   st.appendChild(thinking);
   st.scrollTop = st.scrollHeight;
   try {
-    const res  = await fetch('/bouncer', {
+    const res  = await fetch('/astra/chat', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
-      body:    JSON.stringify({ raw_prompt: q, subject: S.goal })
+      body:    JSON.stringify({ message: q, conversation_id: currentConversationId })
     });
     const data = await res.json();
     st.removeChild(thinking);
-    const isCache = data.route === 'SERVED_FROM_CACHE';
-    route.textContent = isCache ? '⚡ CACHE · ₹0' : '✦ FRESH · GEMINI';
-    route.className   = 'route ' + (isCache ? 'cache' : 'fresh');
+    if (data.conversation_id) currentConversationId = data.conversation_id;  // continue this thread
+    const errored = data.route === 'ERROR';
+    route.textContent = errored ? 'ERROR' : '✦ ASTRA · MEMORY';
+    route.className   = 'route ' + (errored ? '' : 'fresh');
     pushMsg(marked.parse(data.message), 'bot');
-    persistExchange(q, data.message);   // save to chat history (never blocks the UI)
+    loadConversations();   // server persisted both turns; refresh the history list
   } catch (e) {
     st.removeChild(thinking);
     route.textContent = 'ERROR';
