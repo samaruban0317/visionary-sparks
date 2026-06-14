@@ -1276,6 +1276,10 @@ def serve_login():
 def serve_spark():
     return FileResponse("spark.svg", media_type="image/svg+xml")
 
+@app.get("/spark.png")
+def serve_spark_png():
+    return FileResponse("spark.png", media_type="image/png")
+
 @app.get("/favicon.ico")
 def serve_favicon():
     # Browsers auto-request /favicon.ico; serve the spark mark.
