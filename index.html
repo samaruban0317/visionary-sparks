@@ -1201,18 +1201,26 @@ async function solveMission() {
       headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
       body:    JSON.stringify({ puzzle: currentPuzzle, student_answer: ans })
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    // Backend grading hiccup → it returns {status:"error", message:"…"} with no feedback.
+    // Show that message instead of crashing on marked.parse(undefined).
+    if (!res.ok || data.status === 'error' || data.feedback === undefined) {
+      f.className = 'feedback fail';
+      f.innerHTML = esc(data.message || 'The grading system is busy. Wait a moment and try again.');
+      return;
+    }
     if (data.is_correct) {
       const gain = data.xp_gain || 0;
       if (gain > 0) xpToast(gain, 'mission cleared');
       refreshXP();   // pull authoritative total from the ledger
       f.className = 'feedback win';
-      f.innerHTML = `<b>🎉 Mission cleared · +${gain} XP</b><br/>${marked.parse(data.feedback)}`;
+      f.innerHTML = `<b>🎉 Mission cleared · +${gain} XP</b><br/>${marked.parse(data.feedback || '')}`;
     } else {
       f.className = 'feedback fail';
-      f.innerHTML = `<b>Not quite —</b> ${marked.parse(data.feedback)}`;
+      f.innerHTML = `<b>Not quite —</b> ${marked.parse(data.feedback || '')}`;
     }
   } catch (e) {
+    f.className = 'feedback fail';
     f.innerHTML = 'Connection error. Try again.';
   }
 }
