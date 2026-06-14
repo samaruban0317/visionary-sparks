@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64">
-  <rect width="24" height="24" rx="5" fill="#7C3AED"/>
-  <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64" role="img" aria-label="Visionary Sparks">
+  <polygon points="16,2 30,10 30,22 16,30 2,22 2,10" fill="#13131f" stroke="#7c3aed" stroke-width="1.2"/>
+  <path d="M18,6 L12,17 L17,17 L14,28 L23,16 L18,16 Z" fill="#7c3aed"/>
+  <path d="M18,6 L12,17 L17,17 L14,28 L23,16 L18,16 Z" fill="none" stroke="#22d3ee" stroke-width="0.8" stroke-linejoin="round"/>
+  <circle cx="2" cy="10" r="1.2" fill="#22d3ee"/>
+  <circle cx="30" cy="10" r="1.2" fill="#7c3aed"/>
+  <circle cx="30" cy="22" r="1.2" fill="#22d3ee"/>
+  <circle cx="2" cy="22" r="1.2" fill="#7c3aed"/>
 </svg>
