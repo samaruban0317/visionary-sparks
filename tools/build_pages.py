@@ -34,7 +34,12 @@ NAV = [
 ]
 
 
-def head(title, desc, canonical, extra_jsonld=""):
+def _clean(slug):
+    """Extensionless URL path for a page file (features.html -> features)."""
+    return slug[:-5] if slug.endswith(".html") else slug
+
+
+def head(title, desc, canonical, extra_jsonld="", head_inject=""):
     org_ld = """
     {
       "@context": "https://schema.org",
@@ -49,7 +54,7 @@ def head(title, desc, canonical, extra_jsonld=""):
     return f"""<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8">{head_inject}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title}</title>
     <meta name="description" content="{desc}">
@@ -96,7 +101,7 @@ def nav(active):
     links = ""
     for slug, label in NAV:
         is_active = "text-white" if slug == active else "text-gray-400 hover:text-white"
-        links += f'<a href="/{slug}" class="text-sm {is_active} transition-colors">{label}</a>\n'
+        links += f'<a href="/{_clean(slug)}" class="text-sm {is_active} transition-colors">{label}</a>\n'
     return f"""
 <header class="sticky top-0 z-30 backdrop-blur-xl bg-black/30 border-b border-border">
   <nav class="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
@@ -125,24 +130,24 @@ def footer():
     <div>
       <h4 class="mono text-xs text-gray-500 mb-3">PRODUCT</h4>
       <ul class="space-y-2 text-sm">
-        <li><a href="/features.html" class="text-gray-400 hover:text-white">Features</a></li>
-        <li><a href="/how-it-works.html" class="text-gray-400 hover:text-white">How it works</a></li>
+        <li><a href="/features" class="text-gray-400 hover:text-white">Features</a></li>
+        <li><a href="/how-it-works" class="text-gray-400 hover:text-white">How it works</a></li>
         <li><a href="/login.html" class="text-gray-400 hover:text-white">Sign in / Sign up</a></li>
       </ul>
     </div>
     <div>
       <h4 class="mono text-xs text-gray-500 mb-3">COMPANY</h4>
       <ul class="space-y-2 text-sm">
-        <li><a href="/about.html" class="text-gray-400 hover:text-white">About</a></li>
-        <li><a href="/faq.html" class="text-gray-400 hover:text-white">FAQ</a></li>
-        <li><a href="/contact.html" class="text-gray-400 hover:text-white">Contact</a></li>
+        <li><a href="/about" class="text-gray-400 hover:text-white">About</a></li>
+        <li><a href="/faq" class="text-gray-400 hover:text-white">FAQ</a></li>
+        <li><a href="/contact" class="text-gray-400 hover:text-white">Contact</a></li>
       </ul>
     </div>
     <div>
       <h4 class="mono text-xs text-gray-500 mb-3">LEGAL</h4>
       <ul class="space-y-2 text-sm">
-        <li><a href="/privacy.html" class="text-gray-400 hover:text-white">Privacy</a></li>
-        <li><a href="/terms.html" class="text-gray-400 hover:text-white">Terms</a></li>
+        <li><a href="/privacy" class="text-gray-400 hover:text-white">Privacy</a></li>
+        <li><a href="/terms" class="text-gray-400 hover:text-white">Terms</a></li>
       </ul>
     </div>
     """
@@ -163,9 +168,9 @@ def footer():
 </html>"""
 
 
-def page(slug, title, desc, body, active=None, extra_jsonld=""):
-    canonical = f"{SITE}/{slug}"
-    html = head(title, desc, canonical, extra_jsonld) + nav(active or slug) + body + footer()
+def page(slug, title, desc, body, active=None, extra_jsonld="", canonical=None, head_inject=""):
+    canonical = canonical or f"{SITE}/{_clean(slug)}"
+    html = head(title, desc, canonical, extra_jsonld, head_inject) + nav(active or slug) + body + footer()
     out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), slug)
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
@@ -447,6 +452,79 @@ def build_contact():
          body, active="about.html", extra_jsonld=contact_ld)
 
 
+def build_home():
+    # Synchronous, render-blocking redirect: if a Supabase auth token exists in
+    # localStorage, this is a logged-in user -> send them straight to the app
+    # BEFORE the landing paints (no flash). Googlebot / logged-out visitors have
+    # empty localStorage, so they fall through and see the full crawlable landing.
+    redirect = """
+    <script>
+    (function(){
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf('sb-') === 0 && k.indexOf('-auth-token') !== -1) {
+            location.replace('/app'); return;
+          }
+        }
+      } catch (e) {}
+    })();
+    </script>"""
+    home_ld = """{
+      "@context": "https://schema.org",
+      "@graph": [
+        { "@type":"WebSite","name":"Classmate AI by Visionary Sparks","url":"%s/","publisher":{"@type":"Organization","name":"Visionary Sparks"} },
+        { "@type":"EducationalApplication","name":"Classmate AI","applicationCategory":"EducationApplication","operatingSystem":"Web","url":"%s/","description":"An AI tutor (Astra) that personalizes every explanation to a student's age, goal, learning level and mother tongue — for JEE, NEET, Python, placements and general study.","offers":{"@type":"Offer","price":"0","priceCurrency":"INR"},"publisher":{"@type":"Organization","name":"Visionary Sparks","url":"%s/"} }
+      ]
+    }""" % (SITE, SITE, SITE)
+
+    body = f"""
+<section class="max-w-6xl mx-auto px-5 pt-20 pb-12 text-center">
+  <div class="inline-flex items-center gap-2 mono text-xs text-brand border border-brand/30 rounded-full px-3 py-1 mb-6 bg-brand/10">
+    <span class="w-1.5 h-1.5 rounded-full bg-brand"></span> MEET ASTRA · YOUR AI STUDY COMPANION
+  </div>
+  <h1 class="text-4xl sm:text-6xl font-bold text-white leading-[1.05] max-w-4xl mx-auto">
+    The AI tutor that gives <span class="text-brand">you</span> a different answer.
+  </h1>
+  <p class="text-gray-400 mt-6 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto">
+    Generic AI gives everyone the same reply. <strong class="text-gray-200">Classmate AI</strong> tunes every explanation
+    to your age, goal, level and learning style — built for Indian students chasing JEE, NEET, Python, placements and beyond.
+  </p>
+  <div class="mt-9 flex flex-wrap gap-3 justify-center">
+    <a href="/login.html" class="font-semibold bg-brand hover:bg-brandHover text-white px-7 py-3.5 rounded-lg shadow-[0_0_24px_rgba(124,58,237,0.5)] transition-all transform hover:scale-[1.03]">Start free with Astra</a>
+    <a href="/how-it-works.html" class="font-semibold border border-border hover:border-brand text-gray-200 px-7 py-3.5 rounded-lg transition-all">See how it works</a>
+  </div>
+  <p class="mono text-xs text-gray-600 mt-5">Free to start · No card needed · Made in India 🇮🇳</p>
+</section>
+
+<section class="max-w-6xl mx-auto px-5 py-8 grid sm:grid-cols-3 gap-5">
+  {feature_card("🎯", "Personal, not generic", "Answers adapt to your age band, goal, level and archetype — never one-size-fits-all.")}
+  {feature_card("🗺️", "A path, not just answers", "Roadmaps, daily tasks, a Daily Spark Challenge, Career Quests and XP streaks keep you moving.")}
+  {feature_card("∞", "Free to start", "Smart per-segment caching keeps costs near zero, so getting started costs you nothing.")}
+</section>
+
+<section class="max-w-5xl mx-auto px-5 py-12">
+  <h2 class="text-2xl sm:text-3xl font-bold text-white text-center">How Classmate AI works</h2>
+  <p class="text-gray-400 text-center mt-3 max-w-xl mx-auto">Two students can ask the same question and get genuinely different explanations. Here's the idea.</p>
+  <div class="grid sm:grid-cols-2 gap-5 mt-8">
+    <div class="card p-6"><div class="mono text-xs text-brand mb-2">STEP 1</div><h3 class="font-semibold text-white mb-1.5">You tell us who you are</h3><p class="text-sm text-gray-400 leading-relaxed">Pick your age, goal, level and archetype. That profile rides with every question.</p></div>
+    <div class="card p-6"><div class="mono text-xs text-brand mb-2">STEP 2</div><h3 class="font-semibold text-white mb-1.5">Astra teaches, tuned to you</h3><p class="text-sm text-gray-400 leading-relaxed">Explanations are shaped by your profile — the right depth, the right tone, the right examples.</p></div>
+  </div>
+  <div class="text-center mt-8"><a href="/how-it-works.html" class="text-brand hover:text-brandHover font-semibold">Read the full breakdown →</a></div>
+</section>
+
+<section class="max-w-3xl mx-auto px-5 py-16 text-center">
+  <h2 class="text-2xl sm:text-3xl font-bold text-white">Ready to meet Astra?</h2>
+  <p class="text-gray-400 mt-3">Create a free account and get your first personalized answer in seconds.</p>
+  <a href="/login.html" class="inline-block mt-7 font-semibold bg-brand hover:bg-brandHover text-white px-8 py-4 rounded-lg shadow-[0_0_24px_rgba(124,58,237,0.5)] transition-all transform hover:scale-[1.03]">Get started free</a>
+</section>
+"""
+    page("landing.html",
+         "Classmate AI by Visionary Sparks — Your Personalized AI Study Companion",
+         "Classmate AI by Visionary Sparks is a personalized AI tutor for Indian students. Meet Astra — every answer tuned to your age, goal, level and mother tongue. Built for JEE, NEET, Python, placements and beyond. Free to start.",
+         body, active="__home__", canonical=f"{SITE}/", extra_jsonld=home_ld, head_inject=redirect)
+
+
 def _legal_hero(title, sub):
     return f"""
 <section class="max-w-3xl mx-auto px-5 pt-16 pb-4">
@@ -462,6 +540,7 @@ def _jstr(s):
 
 
 if __name__ == "__main__":
+    build_home()
     build_about()
     build_features()
     build_how()

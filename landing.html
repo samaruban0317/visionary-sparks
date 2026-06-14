@@ -2,13 +2,25 @@
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
+    <script>
+    (function(){
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (k && k.indexOf('sb-') === 0 && k.indexOf('-auth-token') !== -1) {
+            location.replace('/app'); return;
+          }
+        }
+      } catch (e) {}
+    })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About Visionary Sparks — the team behind Classmate AI & Astra</title>
-    <meta name="description" content="Visionary Sparks is an India-first education company building Classmate AI, a personalized AI tutor (Astra) that adapts every answer to a student's age, goal, level and learning style.">
+    <title>Classmate AI by Visionary Sparks — Your Personalized AI Study Companion</title>
+    <meta name="description" content="Classmate AI by Visionary Sparks is a personalized AI tutor for Indian students. Meet Astra — every answer tuned to your age, goal, level and mother tongue. Built for JEE, NEET, Python, placements and beyond. Free to start.">
     <meta name="author" content="Visionary Sparks">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#0A0A0B">
-    <link rel="canonical" href="https://visionarysparks.in/about">
+    <link rel="canonical" href="https://visionarysparks.in/">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
     <link rel="icon" type="image/svg+xml" href="/spark.svg">
@@ -16,13 +28,13 @@
     <link rel="manifest" href="/manifest.json">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Visionary Sparks">
-    <meta property="og:title" content="About Visionary Sparks — the team behind Classmate AI & Astra">
-    <meta property="og:description" content="Visionary Sparks is an India-first education company building Classmate AI, a personalized AI tutor (Astra) that adapts every answer to a student's age, goal, level and learning style.">
-    <meta property="og:url" content="https://visionarysparks.in/about">
+    <meta property="og:title" content="Classmate AI by Visionary Sparks — Your Personalized AI Study Companion">
+    <meta property="og:description" content="Classmate AI by Visionary Sparks is a personalized AI tutor for Indian students. Meet Astra — every answer tuned to your age, goal, level and mother tongue. Built for JEE, NEET, Python, placements and beyond. Free to start.">
+    <meta property="og:url" content="https://visionarysparks.in/">
     <meta property="og:image" content="https://visionarysparks.in/spark.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="About Visionary Sparks — the team behind Classmate AI & Astra">
-    <meta name="twitter:description" content="Visionary Sparks is an India-first education company building Classmate AI, a personalized AI tutor (Astra) that adapts every answer to a student's age, goal, level and learning style.">
+    <meta name="twitter:title" content="Classmate AI by Visionary Sparks — Your Personalized AI Study Companion">
+    <meta name="twitter:description" content="Classmate AI by Visionary Sparks is a personalized AI tutor for Indian students. Meet Astra — every answer tuned to your age, goal, level and mother tongue. Built for JEE, NEET, Python, placements and beyond. Free to start.">
     <meta name="twitter:image" content="https://visionarysparks.in/spark.png">
     <script type="application/ld+json">
     {
@@ -33,6 +45,13 @@
       "logo": "https://visionarysparks.in/icon-512.png",
       "description": "Visionary Sparks builds Classmate AI, a personalized AI learning companion for Indian students.",
       "sameAs": ["https://about.visionarysparks.in"]
+    }</script>
+    <script type="application/ld+json">{
+      "@context": "https://schema.org",
+      "@graph": [
+        { "@type":"WebSite","name":"Classmate AI by Visionary Sparks","url":"https://visionarysparks.in/","publisher":{"@type":"Organization","name":"Visionary Sparks"} },
+        { "@type":"EducationalApplication","name":"Classmate AI","applicationCategory":"EducationApplication","operatingSystem":"Web","url":"https://visionarysparks.in/","description":"An AI tutor (Astra) that personalizes every explanation to a student's age, goal, learning level and mother tongue — for JEE, NEET, Python, placements and general study.","offers":{"@type":"Offer","price":"0","priceCurrency":"INR"},"publisher":{"@type":"Organization","name":"Visionary Sparks","url":"https://visionarysparks.in/"} }
+      ]
     }</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -61,53 +80,63 @@
       <a href="/features" class="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
 <a href="/how-it-works" class="text-sm text-gray-400 hover:text-white transition-colors">How it works</a>
 <a href="/faq" class="text-sm text-gray-400 hover:text-white transition-colors">FAQ</a>
-<a href="/about" class="text-sm text-white transition-colors">About</a>
+<a href="/about" class="text-sm text-gray-400 hover:text-white transition-colors">About</a>
 
     </div>
     <a href="/login.html" class="shrink-0 text-sm font-semibold bg-brand hover:bg-brandHover text-white px-4 py-2 rounded-lg shadow-[0_0_18px_rgba(124,58,237,0.4)] transition-all">Open Classmate AI</a>
   </nav>
 </header>
 
-<section class="max-w-6xl mx-auto px-5 pt-16 pb-10 text-center">
+<section class="max-w-6xl mx-auto px-5 pt-20 pb-12 text-center">
   <div class="inline-flex items-center gap-2 mono text-xs text-brand border border-brand/30 rounded-full px-3 py-1 mb-6 bg-brand/10">
-    <span class="w-1.5 h-1.5 rounded-full bg-brand"></span> ABOUT VISIONARY SPARKS
+    <span class="w-1.5 h-1.5 rounded-full bg-brand"></span> MEET ASTRA · YOUR AI STUDY COMPANION
   </div>
-  <h1 class="text-3xl sm:text-5xl font-bold text-white leading-tight max-w-3xl mx-auto">We believe every student deserves a tutor that actually <span class='text-brand'>knows them</span>.</h1>
-  <p class="text-gray-400 mt-5 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto">Visionary Sparks is an India-first education company building Classmate AI — and Astra, an AI tutor that adapts to who you are, not just what you ask.</p>
-  <div class="flex justify-center"></div>
+  <h1 class="text-4xl sm:text-6xl font-bold text-white leading-[1.05] max-w-4xl mx-auto">
+    The AI tutor that gives <span class="text-brand">you</span> a different answer.
+  </h1>
+  <p class="text-gray-400 mt-6 text-base sm:text-lg leading-relaxed max-w-2xl mx-auto">
+    Generic AI gives everyone the same reply. <strong class="text-gray-200">Classmate AI</strong> tunes every explanation
+    to your age, goal, level and learning style — built for Indian students chasing JEE, NEET, Python, placements and beyond.
+  </p>
+  <div class="mt-9 flex flex-wrap gap-3 justify-center">
+    <a href="/login.html" class="font-semibold bg-brand hover:bg-brandHover text-white px-7 py-3.5 rounded-lg shadow-[0_0_24px_rgba(124,58,237,0.5)] transition-all transform hover:scale-[1.03]">Start free with Astra</a>
+    <a href="/how-it-works.html" class="font-semibold border border-border hover:border-brand text-gray-200 px-7 py-3.5 rounded-lg transition-all">See how it works</a>
+  </div>
+  <p class="mono text-xs text-gray-600 mt-5">Free to start · No card needed · Made in India 🇮🇳</p>
 </section>
 
-<section class="max-w-3xl mx-auto px-5 pb-6 prose-vs">
-  <h2>The problem we saw</h2>
-  <p>Generic AI tutors give a class topper and a first-generation learner the exact same answer, in the same words, at the same depth. For millions of Indian students — especially Tamil-medium and regional-language learners — that one-size-fits-all answer is often too fast, too abstract, or pitched at the wrong level.</p>
-  <h2>What we built</h2>
-  <p><strong style="color:#e5e7eb">Classmate AI</strong> is a personalized AI learning companion. Its tutor persona, <strong style="color:#e5e7eb">Astra</strong>, tunes every explanation to four things about you:</p>
-  <ul>
-    <li><strong>Age band</strong> — vocabulary depth and the kind of analogies that land.</li>
-    <li><strong>Goal</strong> — JEE, NEET, Python, placements, or general study framing.</li>
-    <li><strong>Level</strong> — beginner or intermediate, so nothing is over- or under-explained.</li>
-    <li><strong>Archetype</strong> — Grinder, Innovator or Dreamer, which shapes Astra's tone and motivation.</li>
-  </ul>
-  <h2>Why it stays affordable</h2>
-  <p>Most questions students ask overlap. Classmate AI uses an intelligent, per-segment cache, so popular answers are served instantly at near-zero cost — which is how we can offer it free to start and keep it sustainable as we grow.</p>
-  <h2>Where we're headed</h2>
-  <p>We started with college and engineering students in India and we're building outward: deeper regional-language support, career discovery through our Pathfinder, and tools that help students stay consistent — not just get answers. We're early, we're independent, and we're building in public.</p>
-  <p style="margin-top:1.5rem">Want the longer story and the team behind it? Visit <a href="https://about.visionarysparks.in">about.visionarysparks.in</a>.</p>
-</section>
-<section class="max-w-6xl mx-auto px-5 py-10 grid sm:grid-cols-3 gap-5">
+<section class="max-w-6xl mx-auto px-5 py-8 grid sm:grid-cols-3 gap-5">
   <div class="card p-6">
       <div class="text-2xl mb-3">🎯</div>
       <h3 class="font-semibold text-white mb-1.5">Personal, not generic</h3>
-      <p class="text-sm text-gray-400 leading-relaxed">Every answer is tuned to your age, goal, level and learning style.</p>
-    </div><div class="card p-6">
-      <div class="text-2xl mb-3">🇮🇳</div>
-      <h3 class="font-semibold text-white mb-1.5">India-first</h3>
-      <p class="text-sm text-gray-400 leading-relaxed">Built for Indian learners, including Tamil-medium and regional-language students.</p>
-    </div><div class="card p-6">
+      <p class="text-sm text-gray-400 leading-relaxed">Answers adapt to your age band, goal, level and archetype — never one-size-fits-all.</p>
+    </div>
+  <div class="card p-6">
+      <div class="text-2xl mb-3">🗺️</div>
+      <h3 class="font-semibold text-white mb-1.5">A path, not just answers</h3>
+      <p class="text-sm text-gray-400 leading-relaxed">Roadmaps, daily tasks, a Daily Spark Challenge, Career Quests and XP streaks keep you moving.</p>
+    </div>
+  <div class="card p-6">
       <div class="text-2xl mb-3">∞</div>
       <h3 class="font-semibold text-white mb-1.5">Free to start</h3>
-      <p class="text-sm text-gray-400 leading-relaxed">Smart caching keeps costs near zero, so getting started costs you nothing.</p>
+      <p class="text-sm text-gray-400 leading-relaxed">Smart per-segment caching keeps costs near zero, so getting started costs you nothing.</p>
     </div>
+</section>
+
+<section class="max-w-5xl mx-auto px-5 py-12">
+  <h2 class="text-2xl sm:text-3xl font-bold text-white text-center">How Classmate AI works</h2>
+  <p class="text-gray-400 text-center mt-3 max-w-xl mx-auto">Two students can ask the same question and get genuinely different explanations. Here's the idea.</p>
+  <div class="grid sm:grid-cols-2 gap-5 mt-8">
+    <div class="card p-6"><div class="mono text-xs text-brand mb-2">STEP 1</div><h3 class="font-semibold text-white mb-1.5">You tell us who you are</h3><p class="text-sm text-gray-400 leading-relaxed">Pick your age, goal, level and archetype. That profile rides with every question.</p></div>
+    <div class="card p-6"><div class="mono text-xs text-brand mb-2">STEP 2</div><h3 class="font-semibold text-white mb-1.5">Astra teaches, tuned to you</h3><p class="text-sm text-gray-400 leading-relaxed">Explanations are shaped by your profile — the right depth, the right tone, the right examples.</p></div>
+  </div>
+  <div class="text-center mt-8"><a href="/how-it-works.html" class="text-brand hover:text-brandHover font-semibold">Read the full breakdown →</a></div>
+</section>
+
+<section class="max-w-3xl mx-auto px-5 py-16 text-center">
+  <h2 class="text-2xl sm:text-3xl font-bold text-white">Ready to meet Astra?</h2>
+  <p class="text-gray-400 mt-3">Create a free account and get your first personalized answer in seconds.</p>
+  <a href="/login.html" class="inline-block mt-7 font-semibold bg-brand hover:bg-brandHover text-white px-8 py-4 rounded-lg shadow-[0_0_24px_rgba(124,58,237,0.5)] transition-all transform hover:scale-[1.03]">Get started free</a>
 </section>
 
 <footer class="border-t border-border mt-20">

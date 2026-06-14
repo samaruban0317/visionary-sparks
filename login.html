@@ -9,7 +9,7 @@
     <meta name="author" content="Visionary Sparks">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#0A0A0B">
-    <link rel="canonical" href="https://visionarysparks.in/">
+    <link rel="canonical" href="https://visionarysparks.in/login.html">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png">
     <link rel="icon" type="image/svg+xml" href="/spark.svg">
@@ -23,7 +23,7 @@
     <meta property="og:site_name" content="Visionary Sparks">
     <meta property="og:title" content="Classmate AI by Visionary Sparks — Your Personalized AI Study Companion">
     <meta property="og:description" content="Meet Astra, an AI tutor that tunes every answer to your age, goal, level and mother tongue. Personalized learning for Indian students — JEE, NEET, Python, placements & more.">
-    <meta property="og:url" content="https://visionarysparks.in/">
+    <meta property="og:url" content="https://visionarysparks.in/login.html">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Classmate AI by Visionary Sparks">
     <meta name="twitter:description" content="A personalized AI study companion for Indian students. Meet Astra — every answer tuned to you.">
@@ -314,7 +314,7 @@
                     }
                     const { error } = await supabaseClient.auth.signInWithPassword({ email: loginEmail, password: pw });
                     if (error) throw error;
-                    window.location.href = "index.html";
+                    window.location.href = "/app";
                 }
             } catch (error) {
                 alert("Error: " + (error.message || error));
@@ -379,7 +379,7 @@
                     throw new Error(err.detail || "Could not save profile.");
                 }
                 try { localStorage.removeItem('pending_username'); } catch (e) {}
-                window.location.href = "index.html";
+                window.location.href = "/app";
             } catch (error) {
                 alert("Error: " + (error.message || error));
                 btn.innerText = "Launch My Spark";
