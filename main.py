@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google import genai
 from supabase import create_client, Client
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from typing import List
 import json
 from dotenv import load_dotenv
@@ -1271,6 +1271,18 @@ def serve_home_alias():
 def serve_login():
     with open("login.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
+
+@app.get("/favicon.ico")
+def serve_favicon():
+    return FileResponse("favicon.ico", media_type="image/x-icon")
+
+@app.get("/vs_icon_compact.svg")
+def serve_logo_svg():
+    return FileResponse("vs_icon_compact.svg", media_type="image/svg+xml")
+
+@app.get("/vs_icon_compact.png")
+def serve_logo_png():
+    return FileResponse("vs_icon_compact.png", media_type="image/png")
 
 @app.get("/robots.txt")
 def serve_robots():
