@@ -1272,17 +1272,14 @@ def serve_login():
     with open("login.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
+@app.get("/spark.svg")
+def serve_spark():
+    return FileResponse("spark.svg", media_type="image/svg+xml")
+
 @app.get("/favicon.ico")
 def serve_favicon():
-    return FileResponse("favicon.ico", media_type="image/x-icon")
-
-@app.get("/vs_icon_compact.svg")
-def serve_logo_svg():
-    return FileResponse("vs_icon_compact.svg", media_type="image/svg+xml")
-
-@app.get("/vs_icon_compact.png")
-def serve_logo_png():
-    return FileResponse("vs_icon_compact.png", media_type="image/png")
+    # Browsers auto-request /favicon.ico; serve the spark mark.
+    return FileResponse("spark.svg", media_type="image/svg+xml")
 
 @app.get("/robots.txt")
 def serve_robots():
