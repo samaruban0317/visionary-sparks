@@ -1257,8 +1257,16 @@ def onboard(request: OnboardRequest, authorization: str = Header(None)):
     return {"status": "success", "age_band": data["age_band"]}
 
     # --- SERVE THE FRONTEND UI ---
+# Public landing page (crawlable). Logged-in visitors are bounced to /app by a
+# synchronous script in landing.html; Googlebot/logged-out visitors see it fully.
 @app.get("/")
 def serve_home():
+    with open("landing.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
+
+# The actual app (auth-gated, noindex). Both /app and /index.html serve it.
+@app.get("/app")
+def serve_app():
     with open("index.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
