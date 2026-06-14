@@ -1282,8 +1282,28 @@ def serve_spark_png():
 
 @app.get("/favicon.ico")
 def serve_favicon():
-    # Browsers auto-request /favicon.ico; serve the spark mark.
-    return FileResponse("spark.svg", media_type="image/svg+xml")
+    # Real multi-size ICO (16/32/48) — Google's favicon fetcher expects a raster here.
+    return FileResponse("favicon.ico", media_type="image/x-icon")
+
+@app.get("/favicon-48x48.png")
+def serve_favicon_png():
+    return FileResponse("favicon-48x48.png", media_type="image/png")
+
+@app.get("/apple-touch-icon.png")
+def serve_apple_touch():
+    return FileResponse("apple-touch-icon.png", media_type="image/png")
+
+@app.get("/icon-192.png")
+def serve_icon_192():
+    return FileResponse("icon-192.png", media_type="image/png")
+
+@app.get("/icon-512.png")
+def serve_icon_512():
+    return FileResponse("icon-512.png", media_type="image/png")
+
+@app.get("/manifest.json")
+def serve_manifest():
+    return FileResponse("manifest.json", media_type="application/manifest+json")
 
 @app.get("/robots.txt")
 def serve_robots():
