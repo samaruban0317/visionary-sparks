@@ -3,7 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visionary Sparks - Cadet Access</title>
+    <title>Classmate AI by Visionary Sparks — Your Personalized AI Study Companion</title>
+    <meta name="description" content="Classmate AI by Visionary Sparks is a personalized AI learning companion for Indian students. Meet Astra — an AI tutor that tunes every answer to your age, goal, level, and mother tongue. Built for JEE, NEET, Python, placements and beyond.">
+    <meta name="keywords" content="Classmate AI, Visionary Sparks, AI tutor India, JEE preparation, NEET preparation, personalized learning, Astra AI, study companion, Tamil medium learning">
+    <meta name="author" content="Visionary Sparks">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#0A0A0B">
+    <link rel="canonical" href="https://visionarysparks.in/">
+
+    <!-- Open Graph / social preview -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Visionary Sparks">
+    <meta property="og:title" content="Classmate AI by Visionary Sparks — Your Personalized AI Study Companion">
+    <meta property="og:description" content="Meet Astra, an AI tutor that tunes every answer to your age, goal, level and mother tongue. Personalized learning for Indian students — JEE, NEET, Python, placements & more.">
+    <meta property="og:url" content="https://visionarysparks.in/">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Classmate AI by Visionary Sparks">
+    <meta name="twitter:description" content="A personalized AI study companion for Indian students. Meet Astra — every answer tuned to you.">
+
+    <!-- Structured data so Google understands who we are -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "Visionary Sparks",
+          "url": "https://visionarysparks.in/",
+          "description": "Visionary Sparks builds Classmate AI, a personalized AI learning companion for students."
+        },
+        {
+          "@type": "WebSite",
+          "name": "Classmate AI by Visionary Sparks",
+          "url": "https://visionarysparks.in/",
+          "publisher": { "@type": "Organization", "name": "Visionary Sparks" }
+        },
+        {
+          "@type": "EducationalApplication",
+          "name": "Classmate AI",
+          "applicationCategory": "EducationApplication",
+          "operatingSystem": "Web",
+          "url": "https://visionarysparks.in/",
+          "description": "An AI tutor (Astra) that personalizes every explanation to a student's age, goal, learning level and mother tongue — for JEE, NEET, Python, placements and general study.",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" }
+        }
+      ]
+    }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = { darkMode: 'class', theme: { extend: { colors: { background: '#0A0A0B', surface: 'rgba(255, 255, 255, 0.03)', border: 'rgba(255, 255, 255, 0.08)', brand: '#7C3AED', brandHover: '#6D28D9', accent: '#06B6D4' } } } }
@@ -15,8 +61,36 @@
         .arch-card.selected { border-color: #7C3AED; box-shadow: 0 0 18px rgba(124,58,237,0.45); background: rgba(124,58,237,0.12); }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center text-gray-200 font-sans antialiased p-4">
-    <div class="w-full max-w-md p-8 rounded-2xl bg-surface backdrop-blur-xl border border-border shadow-2xl relative overflow-hidden">
+<body class="min-h-screen flex flex-col items-center justify-center text-gray-200 font-sans antialiased p-4 sm:p-6 gap-10">
+  <div class="w-full max-w-5xl grid md:grid-cols-2 gap-10 md:gap-16 items-center">
+
+    <!-- ============ WHO WE ARE (crawlable; shown to every first-time visitor) ============ -->
+    <section class="order-2 md:order-1 text-center md:text-left">
+        <div class="inline-flex items-center gap-2 mono text-xs text-brand border border-brand/30 rounded-full px-3 py-1 mb-5 bg-brand/10">
+            <span class="w-1.5 h-1.5 rounded-full bg-brand"></span> VISIONARY SPARKS
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-bold text-white leading-tight">
+            Classmate AI — your <span class="text-brand">personalized</span> AI study companion.
+        </h1>
+        <p class="text-gray-400 mt-4 text-base leading-relaxed max-w-md mx-auto md:mx-0">
+            Generic AI tutors give everyone the same answer. <strong class="text-gray-200">Astra</strong>, the AI tutor
+            inside Classmate AI, tunes every explanation to <em>your</em> age, goal, learning level and mother tongue —
+            built for Indian students chasing JEE, NEET, Python, placements and beyond.
+        </p>
+        <ul class="mt-6 space-y-2.5 text-sm text-gray-300 max-w-md mx-auto md:mx-0 text-left">
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">✦</span> Answers tuned to your profile, not one-size-fits-all.</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">✦</span> Personal roadmaps, daily tasks &amp; an XP streak engine.</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">✦</span> Career Quests &amp; a Daily Spark Challenge to stay sharp.</li>
+            <li class="flex items-start gap-2"><span class="text-accent mt-0.5">✦</span> Free to start. Made in India 🇮🇳 for Indian learners.</li>
+        </ul>
+        <a href="https://about.visionarysparks.in" class="inline-flex items-center gap-1.5 mt-6 text-sm text-brand hover:text-brandHover transition-colors">
+            Learn more about Visionary Sparks
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>
+        </a>
+    </section>
+
+    <!-- ============ AUTH CARD (functionality unchanged) ============ -->
+    <div class="order-1 md:order-2 w-full max-w-md mx-auto p-8 rounded-2xl bg-surface backdrop-blur-xl border border-border shadow-2xl relative overflow-hidden">
         <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand to-transparent opacity-50"></div>
 
         <div class="text-center mb-8">
@@ -98,6 +172,13 @@
             </button>
         </div>
     </div>
+  </div><!-- /grid wrapper -->
+
+    <footer class="w-full max-w-5xl text-center md:text-left text-xs text-gray-600 mono">
+        © <span id="yr"></span> Visionary Sparks · Classmate AI · visionarysparks.in ·
+        <a href="https://about.visionarysparks.in" class="hover:text-gray-400 transition-colors">About</a>
+    </footer>
+    <script>document.getElementById('yr').textContent = new Date().getFullYear();</script>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>

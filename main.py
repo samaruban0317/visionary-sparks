@@ -1271,6 +1271,27 @@ def serve_home_alias():
 def serve_login():
     with open("login.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
+
+@app.get("/robots.txt")
+def serve_robots():
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Sitemap: https://visionarysparks.in/sitemap.xml\n"
+    )
+    return HTMLResponse(content=body, media_type="text/plain")
+
+@app.get("/sitemap.xml")
+def serve_sitemap():
+    today = _ist_today().isoformat()
+    urls = [("https://visionarysparks.in/", "1.0"),
+            ("https://visionarysparks.in/login.html", "0.8")]
+    items = "".join(
+        f"<url><loc>{loc}</loc><lastmod>{today}</lastmod><priority>{pri}</priority></url>"
+        for loc, pri in urls
+    )
+    xml = f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{items}</urlset>'
+    return HTMLResponse(content=xml, media_type="application/xml")
     
 class ProfileUpdate(BaseModel):
     display_name: str
