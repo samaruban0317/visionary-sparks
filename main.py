@@ -1,12 +1,12 @@
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from fastapi import FastAPI, HTTPException, Header, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Header, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from google import genai
 from supabase import create_client, Client
-from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse, JSONResponse
 from typing import List
 import json
 from dotenv import load_dotenv
@@ -1296,6 +1296,20 @@ def _serve_static_page(slug: str):
 for _slug in PUBLIC_PAGES:
     app.add_api_route(f"/{_slug}", (lambda s=_slug: _serve_static_page(s)), methods=["GET"])
     app.add_api_route(f"/{_slug}.html", (lambda s=_slug: _serve_static_page(s)), methods=["GET"])
+
+# Branded 404 for browser navigation; API/fetch callers still get JSON so the
+# frontend's status-code checks (e.g. /profile -> 404 => onboard) keep working.
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    accept = request.headers.get("accept", "")
+    if request.method == "GET" and "text/html" in accept:
+        try:
+            with open("404.html", "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read(), status_code=404)
+        except FileNotFoundError:
+            pass
+    # Preserve the original detail (e.g. /auth/resolve "Account not found.") for API callers.
+    return JSONResponse({"detail": getattr(exc, "detail", "Not Found")}, status_code=404)
 
 @app.get("/spark.svg")
 def serve_spark():

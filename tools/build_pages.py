@@ -39,7 +39,7 @@ def _clean(slug):
     return slug[:-5] if slug.endswith(".html") else slug
 
 
-def head(title, desc, canonical, extra_jsonld="", head_inject=""):
+def head(title, desc, canonical, extra_jsonld="", head_inject="", robots="index, follow"):
     org_ld = """
     {
       "@context": "https://schema.org",
@@ -59,7 +59,7 @@ def head(title, desc, canonical, extra_jsonld="", head_inject=""):
     <title>{title}</title>
     <meta name="description" content="{desc}">
     <meta name="author" content="Visionary Sparks">
-    <meta name="robots" content="index, follow">
+    <meta name="robots" content="{robots}">
     <meta name="theme-color" content="#0A0A0B">
     <link rel="canonical" href="{canonical}">
     <link rel="icon" href="/favicon.ico" sizes="any">
@@ -99,12 +99,17 @@ def head(title, desc, canonical, extra_jsonld="", head_inject=""):
 
 def nav(active):
     links = ""
+    mlinks = ""
+    extra = NAV + [("contact.html", "Contact")]
     for slug, label in NAV:
         is_active = "text-white" if slug == active else "text-gray-400 hover:text-white"
         links += f'<a href="/{_clean(slug)}" class="text-sm {is_active} transition-colors">{label}</a>\n'
+    for slug, label in extra:
+        is_active = "text-white" if slug == active else "text-gray-300 hover:text-white"
+        mlinks += f'<a href="/{_clean(slug)}" class="block px-3 py-2 rounded-lg text-sm {is_active} hover:bg-white/5 transition-colors">{label}</a>\n'
     return f"""
 <header class="sticky top-0 z-30 backdrop-blur-xl bg-black/30 border-b border-border">
-  <nav class="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between gap-4">
+  <nav class="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between gap-3">
     <a href="/" class="flex items-center gap-2.5 shrink-0">
       <img src="/spark.svg" alt="Visionary Sparks" class="w-8 h-8 rounded-lg" />
       <span class="font-bold text-white tracking-wide">Visionary Sparks</span>
@@ -112,7 +117,17 @@ def nav(active):
     <div class="hidden md:flex items-center gap-7">
       {links}
     </div>
-    <a href="/login.html" class="shrink-0 text-sm font-semibold bg-brand hover:bg-brandHover text-white px-4 py-2 rounded-lg shadow-[0_0_18px_rgba(124,58,237,0.4)] transition-all">Open Classmate AI</a>
+    <div class="flex items-center gap-2">
+      <a href="/login.html" class="shrink-0 text-sm font-semibold bg-brand hover:bg-brandHover text-white px-3.5 sm:px-4 py-2 rounded-lg shadow-[0_0_18px_rgba(124,58,237,0.4)] transition-all">Open Classmate AI</a>
+      <details class="md:hidden relative">
+        <summary class="list-none cursor-pointer select-none p-2 -mr-2 text-gray-300 hover:text-white" aria-label="Open menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </summary>
+        <div class="absolute right-0 mt-3 w-52 card p-2 flex flex-col gap-0.5 z-40 shadow-2xl bg-[#12121f]">
+          {mlinks}
+        </div>
+      </details>
+    </div>
   </nav>
 </header>
 """
@@ -168,9 +183,9 @@ def footer():
 </html>"""
 
 
-def page(slug, title, desc, body, active=None, extra_jsonld="", canonical=None, head_inject=""):
+def page(slug, title, desc, body, active=None, extra_jsonld="", canonical=None, head_inject="", robots="index, follow"):
     canonical = canonical or f"{SITE}/{_clean(slug)}"
-    html = head(title, desc, canonical, extra_jsonld, head_inject) + nav(active or slug) + body + footer()
+    html = head(title, desc, canonical, extra_jsonld, head_inject, robots) + nav(active or slug) + body + footer()
     out = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), slug)
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
@@ -525,6 +540,28 @@ def build_home():
          body, active="__home__", canonical=f"{SITE}/", extra_jsonld=home_ld, head_inject=redirect)
 
 
+def build_404():
+    body = """
+<section class="max-w-2xl mx-auto px-5 py-28 text-center flex-1">
+  <div class="mono text-7xl sm:text-8xl font-bold text-brand">404</div>
+  <h1 class="text-2xl sm:text-3xl font-bold text-white mt-4">This page wandered off.</h1>
+  <p class="text-gray-400 mt-3 max-w-md mx-auto">The page you're looking for doesn't exist or has moved. Let's get you back on track.</p>
+  <div class="mt-8 flex flex-wrap gap-3 justify-center">
+    <a href="/" class="font-semibold bg-brand hover:bg-brandHover text-white px-6 py-3 rounded-lg shadow-[0_0_22px_rgba(124,58,237,0.45)] transition-all">Back home</a>
+    <a href="/login.html" class="font-semibold border border-border hover:border-brand text-gray-200 px-6 py-3 rounded-lg transition-all">Open Classmate AI</a>
+  </div>
+  <div class="mt-10 text-sm text-gray-500">
+    Or try <a href="/features" class="text-brand hover:text-brandHover">Features</a> ·
+    <a href="/how-it-works" class="text-brand hover:text-brandHover">How it works</a> ·
+    <a href="/faq" class="text-brand hover:text-brandHover">FAQ</a>
+  </div>
+</section>
+"""
+    page("404.html", "Page not found — Visionary Sparks",
+         "The page you're looking for doesn't exist. Head back to Classmate AI by Visionary Sparks.",
+         body, active="__home__", canonical=f"{SITE}/404", robots="noindex, nofollow")
+
+
 def _legal_hero(title, sub):
     return f"""
 <section class="max-w-3xl mx-auto px-5 pt-16 pb-4">
@@ -541,6 +578,7 @@ def _jstr(s):
 
 if __name__ == "__main__":
     build_home()
+    build_404()
     build_about()
     build_features()
     build_how()
