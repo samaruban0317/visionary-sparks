@@ -1,20 +1,6 @@
 # CLAUDE.md — Classmate AI · Visionary Sparks
 > Read every section before touching any file. This document IS the project brief.
 
----
-
-## HOW TO START — READ THIS FIRST
-
-Before any task, read these files in order:
-1. `main.py` — the full FastAPI backend (endpoints, Gemini calls, Supabase queries)
-2. `index2.html` — the new dashboard frontend (this is the target frontend)
-3. `index.html` — the old simple frontend (reference only, shows how backend was called before)
-4. `requirements.txt` — installed packages
-
-Then re-read this CLAUDE.md. Only then begin the task.
-If you are unsure about any architectural decision, refer to the "Architecture" and "Cost Discipline" sections below before proceeding.
-
----
 
 ## What this project is
 
@@ -29,25 +15,7 @@ The AI tutor persona is named **Astra**.
 
 ---
 
-## Product modes (the full vision — build in phases)
 
-### Phase 1 (current build target)
-- **Astra Study Mode** — student asks a concept, gets a tuned explanation. Bouncer → cache → Gemini.
-- **Quests (RPG Mode)** — career-themed gamified missions that use academic concepts as the "weapon."
-- **Personalization** — every response shaped by: age_band, goal, level, archetype.
-- **Login / User Accounts** — Supabase Auth (email + password). Each user has a saved profile. Different users → different cache segments → different training data.
-
-### Phase 2 (after Phase 1 is validated with real users)
-- **Explorer Mode** — short awareness drops (health, technology, world events). No infinite feed. No comments. Safe.
-- **Paths / Roadmaps** — structured learning tracks (Python, JEE, NEET, etc.)
-- **Teacher/Class Platform** — B2B layer where a teacher manages a course group, shares materials.
-
-### Phase 3 (future)
-- **5-level teaching depth** (simple → mother-tongue blend → analogy → visual Q&A → live animation)
-- **Voice access** (floating mic engine — NOT now, it will burn credits fast)
-- **3D pre-rendered concept animations**
-
----
 
 ## Personalization system
 
@@ -91,23 +59,6 @@ The archetype affects Astra's personality:
 | Hosting | Render (auto-deploy from GitHub `samaruban0317/visionary-sparks`) |
 
 **Do NOT change the AI model** without checking cost implications first. `gemini-3.1-flash-lite` is the budget workhorse. Pricier models only for hard tasks explicitly approved.
-
----
-
-## File structure
-
-```
-visionary-backend/
-├── CLAUDE.md           ← this file (project brief for Code)
-├── main.py             ← FastAPI app — all endpoints live here
-├── index.html          ← OLD frontend (reference only, do not develop further)
-├── index2.html         ← NEW dashboard frontend (this is the active frontend)
-├── login.html          ← BROKEN — to be deleted and rebuilt inside index2.html
-├── requirements.txt    ← fastapi uvicorn pydantic google-genai supabase
-└── test_bouncer.py     ← manual tests for the bouncer endpoint
-```
-
----
 
 ## Architecture — how a response is built
 
@@ -277,29 +228,16 @@ start http://localhost:8000
 # git — always branch before big work
 git checkout -b feature/<name>
 git add -A && git commit -m "checkpoint: <description>"
-git push origin feature/<name>
+git push origin  feature/<name>
 # merge to main only when tested → Render auto-deploys
 ```
 
 ---
 
-## Current priorities (build in this order)
-
-1. **Wire index2.html to real backend** — replace all demo/mock fetch functions with real calls to `/bouncer`, `/mission`, `/solve_mission`. Pass profile fields (age_band, goal, level, archetype) in each request body.
-
-2. **Build login system** — Supabase Auth email/password overlay on index2.html. On first login, show archetype/profile onboarding and create a `user_profiles` row. Load profile on session restore. Pass `user_id` in all API requests.
-
-3. **Upgrade StudentRequest** — add age_band, goal, level, archetype. Fix the cache key to the segmented format. Inject profile into the Gemini prompt.
-
-4. **Enable RLS on user_profiles** — immediately when the table is created. Test that user A cannot read user B's profile.
-
-5. **Swap index for index2** — once login + wiring work: update the `/` route in main.py to serve `index2.html`. Delete `index.html` and the old broken `login.html`.
-
-6. **Give to 5 real friends** — only after steps 1-5 are done. Collect what breaks.
 
 ---
 
-## What NOT to build right now
+
 
 - Voice mic engine (credit killer)
 - 3D animations (Phase 3)

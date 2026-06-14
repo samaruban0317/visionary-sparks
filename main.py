@@ -127,7 +127,14 @@ XP_RULES = {
     "reflection":    {"amount": 30,  "cap": 2},
     "quest_cleared": {"amount": 50,  "cap": None},
     "streak_7":      {"amount": 100, "cap": None},
+    # Daily Spark Challenge: 3-question quiz, once/day. Variable payout (15 floor
+    # for attempting + 10 per correct → max 45); `amount` here is the max, used by
+    # the /xp/summary opportunity hint.
+    "daily_challenge": {"amount": 45, "cap": 1},
 }
+CHALLENGE_FLOOR_XP   = 15   # for attempting at all
+CHALLENGE_PER_CORRECT = 10  # per correct answer (3 correct → 15 + 30 = 45)
+CHALLENGE_Q_COUNT     = 3
 DAILY_TASK_COUNT = 3   # tasks surfaced from the roadmap each day
 
 HEARTBEAT_PINGS_NEEDED = 6      # 6 pings * ~5 min = ~30 min active
@@ -236,6 +243,71 @@ def ensure_today_tasks(user_id):
     rows = [{"user_id": user_id, "roadmap_id": roadmap_id, "task_date": today, "title": t} for t in picks]
     inserted = db_admin.table("daily_tasks").insert(rows).execute().data
     return inserted or []
+
+
+# ---- Daily Spark Challenge: one segment-cached quiz per day (₹0 at scale) ----
+
+def _challenge_cache_key(age_band, goal, level):
+    """Segment + date key. Reuses mega_cache so the FIRST student in a segment each
+    day pays one Gemini call; everyone else in that segment gets it free."""
+    return f"DAILYQ|{age_band}|{goal}|{level}|{_ist_today().isoformat()}"
+
+
+def _generate_challenge(age_band, goal, level, archetype):
+    """One Gemini call → 3 MCQs as a list of dicts. Each: q, options[4], answer(idx), explain."""
+    goal_word = goal if goal and goal != "general" else "their studies"
+    prompt = (
+        "You are Astra, setting today's Daily Spark Challenge — a quick 3-question multiple-choice "
+        "quiz to keep a student sharp.\n"
+        f"Student profile — age_band: {age_band}, level: {level}, goal: {goal_word}, archetype: {archetype}.\n"
+        f"Write exactly {CHALLENGE_Q_COUNT} questions relevant to their goal and tuned to their level "
+        "(beginner = foundational recall/understanding; intermediate = applied reasoning). "
+        "Make them feel fresh and a little fun, not dry textbook drills. Each question has exactly 4 options "
+        "with ONE correct answer, and a one-sentence explanation of why the answer is right.\n"
+        "Return STRICT JSON ONLY (no markdown, no commentary) with this exact shape:\n"
+        '{"questions": [{"q": "the question", "options": ["a","b","c","d"], '
+        '"answer": 0, "explain": "why it is correct"}]}\n'
+        '"answer" is the 0-based index of the correct option.'
+    )
+    resp = ai_client.models.generate_content(model="gemini-3.1-flash-lite", contents=prompt)
+    data = _extract_json(resp.text.strip())
+    qs = data.get("questions", []) if isinstance(data, dict) else []
+    # Validate/sanitize shape — drop anything malformed rather than trust the model blindly.
+    clean = []
+    for item in qs:
+        opts = item.get("options")
+        ans  = item.get("answer")
+        if (isinstance(item.get("q"), str) and isinstance(opts, list) and len(opts) == 4
+                and all(isinstance(o, str) for o in opts) and isinstance(ans, int) and 0 <= ans <= 3):
+            clean.append({"q": item["q"].strip(), "options": [o.strip() for o in opts],
+                          "answer": ans, "explain": str(item.get("explain", "")).strip()})
+    if not clean:
+        raise ValueError("challenge generation produced no valid questions")
+    return clean[:CHALLENGE_Q_COUNT]
+
+
+def _get_or_make_challenge(age_band, goal, level, archetype):
+    """Cache-first: return today's question bank for this segment, generating once on miss."""
+    key = _challenge_cache_key(age_band, goal, level)
+    hit = db_admin.table("mega_cache").select("answer").eq("question", key).execute()
+    if hit.data:
+        try:
+            return json.loads(hit.data[0]["answer"])
+        except (ValueError, TypeError):
+            pass  # corrupt cache row → regenerate below
+    questions = _generate_challenge(age_band, goal, level, archetype)
+    # upsert so a same-segment race just overwrites with an equivalent bank
+    db_admin.table("mega_cache").upsert({"question": key, "answer": json.dumps(questions)}).execute()
+    return questions
+
+
+def _todays_challenge_event(user_id):
+    """The user's daily_challenge XP event for today (IST), if they've already played."""
+    start = _ist_today_start_iso()
+    rows = (db_admin.table("xp_events").select("amount,meta,created_at")
+            .eq("user_id", user_id).eq("event_type", "daily_challenge")
+            .gte("created_at", start).order("created_at", desc=True).limit(1).execute()).data or []
+    return rows[0] if rows else None
 
 
 class StudentRequest(BaseModel):
@@ -690,6 +762,85 @@ def list_reflections(authorization: str = Header(None)):
     ]}
 
 
+@app.get("/challenge/today")
+def challenge_today(authorization: str = Header(None)):
+    """Today's Daily Spark Challenge for the user's segment. Cache-first generation.
+    Returns questions WITHOUT the answer key (graded server-side, anti-cheat) plus
+    whether the user has already played today and their score if so."""
+    user_id = require_user(authorization)
+    p = _profile_for(user_id)
+    age_band  = p.get("age_band",     "college")
+    goal      = p.get("current_goal", "general")
+    level     = p.get("level",        "beginner")
+    archetype = p.get("archetype",    "Grinder")
+
+    try:
+        questions = _get_or_make_challenge(age_band, goal, level, archetype)
+    except Exception as e:
+        print(f"⚠️ Daily Challenge generation error: {e}")
+        raise HTTPException(status_code=503, detail="Astra is drafting today's challenge — try again in a moment.")
+
+    ev = _todays_challenge_event(user_id)
+    completed = ev is not None
+    last = (ev.get("meta") or {}) if ev else {}
+
+    public_qs = [{"q": q["q"], "options": q["options"]} for q in questions]
+    return {
+        "date": _ist_today().isoformat(),
+        "total": len(questions),
+        "completed": completed,
+        "last_score": last.get("score") if completed else None,
+        "last_xp": (ev.get("amount") if ev else None),
+        "questions": public_qs,
+    }
+
+
+class ChallengeSubmit(BaseModel):
+    answers: List[int]
+
+@app.post("/challenge/submit")
+def challenge_submit(body: ChallengeSubmit, authorization: str = Header(None)):
+    """Grade today's challenge against the server-held answer key. Awards XP once/day
+    (floor for attempting + per-correct bonus). Idempotent — replaying returns the
+    original result without re-awarding."""
+    user_id = require_user(authorization)
+    p = _profile_for(user_id)
+    age_band  = p.get("age_band",     "college")
+    goal      = p.get("current_goal", "general")
+    level     = p.get("level",        "beginner")
+    archetype = p.get("archetype",    "Grinder")
+
+    try:
+        questions = _get_or_make_challenge(age_band, goal, level, archetype)
+    except Exception as e:
+        print(f"⚠️ Daily Challenge grade error: {e}")
+        raise HTTPException(status_code=503, detail="Couldn't load today's challenge — try again shortly.")
+
+    answers = body.answers or []
+    results, score = [], 0
+    for i, q in enumerate(questions):
+        chosen = answers[i] if i < len(answers) else -1
+        correct = (chosen == q["answer"])
+        if correct:
+            score += 1
+        results.append({
+            "your_index": chosen, "correct_index": q["answer"],
+            "correct": correct, "explain": q.get("explain", ""),
+        })
+
+    # Idempotency: if they already played today, return the graded results but don't pay again.
+    existing = _todays_challenge_event(user_id)
+    if existing is not None:
+        meta = existing.get("meta") or {}
+        return {"already_done": True, "score": meta.get("score", score),
+                "total": len(questions), "xp_awarded": 0, "results": results}
+
+    xp = CHALLENGE_FLOOR_XP + CHALLENGE_PER_CORRECT * score
+    award_xp(user_id, "daily_challenge", xp, {"score": score, "total": len(questions)})
+    return {"already_done": False, "score": score, "total": len(questions),
+            "xp_awarded": xp, "results": results}
+
+
 @app.get("/xp/summary")
 def xp_summary(authorization: str = Header(None)):
     """Total XP (sum of ledger via mirror), today's earned XP, streak, and
@@ -724,6 +875,13 @@ def xp_summary(authorization: str = Header(None)):
     add_opp("active_30min", lambda n, p, a: f"Stay active 30 min for +{a}")
     add_opp("task_done",    lambda n, p, a: f"Check {n} more task{'s' if n > 1 else ''} for +{p}")
     add_opp("reflection",   lambda n, p, a: f"Log {n} reflection{'s' if n > 1 else ''} for +{p}")
+
+    # Daily Spark Challenge — variable payout, lives outside the fixed-amount cap loop.
+    if count_events_today(user_id, "daily_challenge") == 0:
+        max_pts = XP_RULES["daily_challenge"]["amount"]
+        remaining_points += max_pts
+        opportunities.append({"event": "daily_challenge", "remaining": 1, "points": max_pts,
+                              "label": f"Crack today's Daily Spark for up to +{max_pts}"})
 
     return {
         "total_xp": total_xp,

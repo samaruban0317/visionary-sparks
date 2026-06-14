@@ -364,6 +364,16 @@ h2.title{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;letter
           </div>
         </div>
 
+        <!-- DAILY SPARK CHALLENGE · segment-cached 3-question quiz (₹0 at scale) -->
+        <div class="panel glow" id="sparkCard" style="padding:22px;margin-top:18px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <div class="eyebrow" style="margin:0">Daily Spark Challenge <span style="color:var(--faint)">· up to +45 XP</span></div>
+            <span class="chip" style="padding:5px 11px" id="sparkChip">3 questions</span>
+          </div>
+          <div style="color:var(--muted);font-size:13.5px;margin-bottom:14px" id="sparkIntro">A quick daily quiz tuned to your goal. Sharpen the blade. 🔥</div>
+          <div id="sparkBody"><div class="tasks-empty">Loading today's challenge…</div></div>
+        </div>
+
         <!-- THIS WEEK · current roadmap focus (the bigger picture behind today's tasks) -->
         <div class="panel" id="weekFocus" style="padding:22px;margin-top:18px;display:none">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -1687,6 +1697,119 @@ function startHeartbeat() {
   }, 5 * 60 * 1000);   // every 5 minutes
 }
 
+/* ── Daily Spark Challenge ──────────────────────────────────────────────── */
+let SPARK = { questions: [], picks: [], done: false };
+
+async function loadChallenge() {
+  const body = document.getElementById('sparkBody');
+  try {
+    const res = await fetch('/challenge/today', { headers: await getAuthHeader() });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    SPARK.questions = data.questions || [];
+    SPARK.picks = new Array(SPARK.questions.length).fill(-1);
+    SPARK.done = !!data.completed;
+    document.getElementById('sparkChip').textContent = `${data.total} questions`;
+    if (data.completed) {
+      renderSparkDone(data.last_score, data.total, data.last_xp);
+    } else {
+      renderSparkQuiz();
+    }
+  } catch (e) {
+    body.innerHTML = '<div class="tasks-empty">Couldn\'t load today\'s challenge. Refresh to retry.</div>';
+  }
+}
+
+function renderSparkQuiz() {
+  const body = document.getElementById('sparkBody');
+  document.getElementById('sparkIntro').textContent = 'A quick daily quiz tuned to your goal. Sharpen the blade. 🔥';
+  body.innerHTML = SPARK.questions.map((q, qi) => `
+    <div class="spark-q" style="border-top:1px solid var(--line);padding:14px 0">
+      <div style="font-weight:600;font-size:14.5px;margin-bottom:10px"><span style="color:var(--violet);font-family:'JetBrains Mono';font-size:12px;margin-right:8px">Q${qi + 1}</span>${esc(q.q)}</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        ${q.options.map((o, oi) => `
+          <div class="spark-opt" data-q="${qi}" data-o="${oi}" onclick="pickSpark(${qi}, ${oi})"
+               style="border:1px solid var(--line);border-radius:10px;padding:9px 13px;font-size:13.5px;cursor:pointer;transition:all .15s;color:var(--text)">
+            <span style="color:var(--faint);font-family:'JetBrains Mono';font-size:11px;margin-right:9px">${String.fromCharCode(65 + oi)}</span>${esc(o)}
+          </div>`).join('')}
+      </div>
+    </div>`).join('') + `
+    <div style="display:flex;align-items:center;gap:14px;margin-top:16px">
+      <button class="btn btn-p" id="sparkSubmit" onclick="submitChallenge()" style="padding:11px 22px" disabled>Submit challenge</button>
+      <span id="sparkHint" style="font-size:12.5px;color:var(--muted)">Pick an answer for each question.</span>
+    </div>`;
+}
+
+function pickSpark(qi, oi) {
+  if (SPARK.done) return;
+  SPARK.picks[qi] = oi;
+  document.querySelectorAll(`.spark-opt[data-q="${qi}"]`).forEach(el => {
+    const on = Number(el.dataset.o) === oi;
+    el.style.borderColor = on ? 'var(--violet)' : 'var(--line)';
+    el.style.background = on ? 'rgba(124,92,255,.12)' : 'transparent';
+  });
+  const ready = SPARK.picks.every(p => p >= 0);
+  const btn = document.getElementById('sparkSubmit');
+  if (btn) btn.disabled = !ready;
+  if (ready) document.getElementById('sparkHint').textContent = 'Locked in. Send it. 🚀';
+}
+
+async function submitChallenge() {
+  const btn = document.getElementById('sparkSubmit');
+  const hint = document.getElementById('sparkHint');
+  btn.disabled = true;
+  hint.textContent = 'Grading…';
+  try {
+    const res = await fetch('/challenge/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await getAuthHeader()) },
+      body: JSON.stringify({ answers: SPARK.picks })
+    });
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    SPARK.done = true;
+    revealSparkResults(data);
+    if (data.xp_awarded > 0) xpToast(data.xp_awarded, `${data.score}/${data.total} on Daily Spark`);
+    refreshXP();
+  } catch (e) {
+    btn.disabled = false;
+    hint.style.color = 'var(--rose)';
+    hint.textContent = 'Couldn\'t submit — try again.';
+  }
+}
+
+function revealSparkResults(data) {
+  // Color each option: correct = lime, your wrong pick = rose.
+  (data.results || []).forEach((r, qi) => {
+    document.querySelectorAll(`.spark-opt[data-q="${qi}"]`).forEach(el => {
+      el.onclick = null; el.style.cursor = 'default';
+      const oi = Number(el.dataset.o);
+      if (oi === r.correct_index) { el.style.borderColor = 'var(--lime)'; el.style.background = 'rgba(132,204,22,.14)'; }
+      else if (oi === r.your_index) { el.style.borderColor = 'var(--rose)'; el.style.background = 'rgba(244,63,94,.12)'; }
+    });
+    const q = document.querySelectorAll('.spark-q')[qi];
+    if (q && r.explain) {
+      const ex = document.createElement('div');
+      ex.style.cssText = 'margin-top:9px;font-size:12.5px;color:var(--muted);border-left:2px solid var(--line2);padding-left:10px';
+      ex.innerHTML = `<b style="color:${r.correct ? 'var(--lime)' : 'var(--rose)'}">${r.correct ? 'Correct' : 'Not quite'}</b> · ${esc(r.explain)}`;
+      q.appendChild(ex);
+    }
+  });
+  const sub = document.getElementById('sparkSubmit');
+  if (sub) sub.remove();
+  const hint = document.getElementById('sparkHint');
+  if (hint) { hint.style.color = 'var(--lime)'; hint.textContent = `You scored ${data.score}/${data.total}. Back tomorrow for a fresh set. 🔥`; }
+}
+
+function renderSparkDone(score, total, xp) {
+  document.getElementById('sparkIntro').textContent = 'Done for today — your blade is sharp. 🔥';
+  document.getElementById('sparkBody').innerHTML = `
+    <div style="text-align:center;padding:18px 12px">
+      <div style="font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;line-height:1;color:var(--cyan)">${score}/${total}</div>
+      <div style="color:var(--muted);font-size:13.5px;margin-top:8px">Today's Daily Spark is complete${xp ? ` · +${xp} XP earned` : ''}. A fresh challenge drops tomorrow.</div>
+    </div>`;
+}
+
 async function initConsistency() {
   try {
     const res = await fetch('/xp/login-bonus', { method: 'POST', headers: await getAuthHeader() });
@@ -1699,6 +1822,7 @@ async function initConsistency() {
   } catch (e) {}
   refreshXP();
   loadTodayTasks();
+  loadChallenge();
   loadReflections();
   loadStats();
   loadWeekFocus();
